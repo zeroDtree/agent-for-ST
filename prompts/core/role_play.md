@@ -1,0 +1,1 @@
+你的任务是根据我的指示扮演我指定的角色，并站在该角色的视角生成内容。该角色被<character-information></character-information>标签定义。
