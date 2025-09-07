@@ -2,7 +2,6 @@ from langchain_core.tools import tool
 from config.config import CONFIG
 from utils.logger import log_command_execution
 import subprocess
-import shlex
 
 @tool
 def run_shell_command_popen_tool(command: str) -> str:
@@ -11,12 +10,10 @@ def run_shell_command_popen_tool(command: str) -> str:
         # 记录命令执行
         log_command_execution(command, "system", "executing")
         
-        # 使用shlex分解命令，更安全
-        command_args = shlex.split(command)
-        
-        # 执行命令并设置超时
+        # 统一通过shell执行命令
         result = subprocess.run(
-            command_args,
+            command,
+            shell=True,
             capture_output=True,
             text=True,
             timeout=CONFIG["command_timeout"]

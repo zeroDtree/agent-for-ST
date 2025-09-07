@@ -11,6 +11,7 @@ def get_llm_model(model_name: str):
             base_url="https://api.deepseek.com/v1",
             model=model_name,
             max_tokens=8192,
+            streaming=True,
         )
     elif model_name in [
         "claude-3.5-haiku",
@@ -48,6 +49,7 @@ def get_llm_model(model_name: str):
             api_key=apikey,
             base_url="http://localhost:3010/v1",
             model=model_name,
+            streaming=True,
         )
     else:
         raise ValueError(f"Invalid model name: {model_name}")

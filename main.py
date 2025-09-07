@@ -4,7 +4,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import HumanMessage
 
 # 配置和utils
-from config.config import CONFIG
+from config.config import CONFIG, TOOL_SECURITY_CONFIG
 from utils.logger import logger
 from utils.monitor import monitor_performance
 from utils.history import cleanup_old_messages
@@ -34,8 +34,8 @@ def create_graph(tools=None, checkpointer=None):
     if tools is None:
         tools = ALL_TOOLS
 
-    if checkpointer is None:
-        checkpointer = InMemorySaver()
+    # if checkpointer is None:
+    #     checkpointer = InMemorySaver()
 
     tool_node = ToolNode(tools=tools)
     graph_builder = StateGraph(State)
@@ -50,31 +50,66 @@ def create_graph(tools=None, checkpointer=None):
 
     def chatbot_route(state: State):
         """路由函数，处理工具调用"""
-        if isinstance(state, list):
-            ai_message = state[-1]
-        elif messages := state.get("messages", []):
-            ai_message = messages[-1]
-        else:
-            raise ValueError(f"No messages found in input state to tool_edge: {state}")
+        try:
+            if isinstance(state, list):
+                ai_message = state[-1]
+            elif messages := state.get("messages", []):
+                ai_message = messages[-1]
+            else:
+                raise ValueError(f"No messages found in input state to tool_edge: {state}")
 
-        if hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
-            # 检查是否是shell命令工具调用
-            for tool_call in ai_message.tool_calls:
-                tool_name = tool_call.get("name", "")
-                if tool_name in ["run_shell_command_tool", "run_shell_command_popen_tool"]:
-                    # 提取命令参数
+            if hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
+                # 从配置文件获取工具分类
+                safe_tools = TOOL_SECURITY_CONFIG["safe_tools"]
+                shell_tools = TOOL_SECURITY_CONFIG["shell_tools"]
+                confirm_required_tools = TOOL_SECURITY_CONFIG["confirm_required_tools"]
+                
+                # 记录工具调用信息
+                tool_names = [tool_call.get("name", "unknown") for tool_call in ai_message.tool_calls]
+                logger.info(f"检测到工具调用: {', '.join(tool_names)}")
+                
+                for tool_call in ai_message.tool_calls:
+                    tool_name = tool_call.get("name", "")
                     args = tool_call.get("args", {})
-                    command = args.get("command", "")
-
-                    # 使用缓存的白名单检查
-                    if cached_is_safe_command(command):
-                        print(f"🟢 白名单命令，直接执行: {command}")
+                    
+                    # 处理安全工具（直接执行）
+                    if tool_name in safe_tools:
+                        logger.info(f"安全工具调用: {tool_name}")
+                        print(f"🟢 安全工具，直接执行: {tool_name}")
                         return "my_tools"
-
-            # 非白名单命令或非shell命令，需要用户确认
-            print(f"⚠️ 非白名单命令，需要确认: {command}")
-            return "human_confirm"
-        return END
+                    
+                    # 处理需要确认的工具
+                    elif tool_name in confirm_required_tools:
+                        logger.info(f"需要确认的工具调用: {tool_name}")
+                        print(f"⚠️ 需要确认的工具: {tool_name}")
+                        return "human_confirm"
+                    
+                    # 处理shell命令工具
+                    elif tool_name in shell_tools:
+                        command = args.get("command", "")
+                        logger.info(f"Shell命令工具调用: {tool_name}, 命令: {command}")
+                        
+                        # 使用缓存的白名单检查
+                        if cached_is_safe_command(command):
+                            print(f"🟢 白名单命令，直接执行: {command}")
+                            return "my_tools"
+                        else:
+                            # 非白名单命令，需要用户确认
+                            print(f"⚠️ 非白名单命令，需要确认: {command}")
+                            return "human_confirm"
+                    
+                    # 其他工具默认需要确认
+                    else:
+                        logger.warning(f"未知工具调用: {tool_name}")
+                        print(f"⚠️ 未知工具，需要确认: {tool_name}")
+                        return "human_confirm"
+            
+            return END
+            
+        except Exception as e:
+            logger.error(f"路由函数执行出错: {e}")
+            print(f"🚫 路由处理出错: {e}")
+            return END
 
     graph_builder.add_conditional_edges(
         "chatbot",
