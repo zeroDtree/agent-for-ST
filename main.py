@@ -29,7 +29,7 @@ def chatbot(state: State):
     return {"messages": [response]}
 
 
-def create_graph(tools=None, checkpointer=None):
+def create_graph(tools=None, checkpointer=None, web_mode=False):
     """创建图结构，支持依赖注入"""
     if tools is None:
         tools = ALL_TOOLS
@@ -43,7 +43,7 @@ def create_graph(tools=None, checkpointer=None):
     graph_builder.add_node("my_tools", tool_node)
     graph_builder.add_node("chatbot", chatbot)
     graph_builder.add_node(
-        "human_confirm", get_human_confirm_node(next_node_for_yes="my_tools", next_node_for_no="chatbot")
+        "human_confirm", get_human_confirm_node(next_node_for_yes="my_tools", next_node_for_no="chatbot", web_mode=web_mode)
     )
     graph_builder.add_edge(START, "chatbot")
     graph_builder.add_edge("my_tools", "chatbot")
