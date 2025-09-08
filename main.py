@@ -2,6 +2,8 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import HumanMessage
+import argparse
+import os
 
 # 配置和utils
 from config.config import CONFIG, TOOL_SECURITY_CONFIG
@@ -119,9 +121,61 @@ def create_graph(tools=None, checkpointer=None, web_mode=False):
     return graph_builder.compile(checkpointer=checkpointer)
 
 
+def parse_arguments():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(
+        description="AI Agent 控制台应用",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例用法:
+  %(prog)s                          # 使用默认配置启动
+  %(prog)s --working-dir /path      # 设置工作目录
+  %(prog)s -w ~/projects            # 使用简短参数设置工作目录
+        """
+    )
+    
+    parser.add_argument(
+        "--working-dir", "-w",
+        type=str,
+        help="设置Agent的初始工作目录"
+    )
+    
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="AI Agent Console v1.0.0"
+    )
+    
+    return parser.parse_args()
+
+
 def main():
     """主程序"""
     try:
+        # 解析命令行参数
+        args = parse_arguments()
+        
+        # 设置工作目录
+        if args.working_dir:
+            # 展开用户路径（如~）
+            working_dir = os.path.expanduser(args.working_dir)
+            
+            # 检查目录是否存在
+            if not os.path.exists(working_dir):
+                print(f"❌ 工作目录不存在: {working_dir}")
+                logger.error(f"工作目录不存在: {working_dir}")
+                return
+            
+            if not os.path.isdir(working_dir):
+                print(f"❌ 指定的路径不是目录: {working_dir}")
+                logger.error(f"指定的路径不是目录: {working_dir}")
+                return
+            
+            # 更新配置
+            CONFIG["working_directory"] = os.path.abspath(working_dir)
+            print(f"🗂️ 设置工作目录: {CONFIG['working_directory']}")
+            logger.info(f"设置工作目录: {CONFIG['working_directory']}")
+        
         logger.info("启动AI助手系统")
 
         # 初始化图

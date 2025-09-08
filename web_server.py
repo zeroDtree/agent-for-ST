@@ -563,6 +563,8 @@ def parse_arguments():
   %(prog)s --host 127.0.0.1         # 仅允许本地访问
   %(prog)s --debug                  # 启用调试模式
   %(prog)s --no-web-mode            # 禁用Web模式
+  %(prog)s --working-dir ~/projects # 设置工作目录
+  %(prog)s -w /path/to/work         # 使用简短参数设置工作目录
   %(prog)s --port 8080 --debug      # 在8080端口启动并启用调试模式
         """
     )
@@ -616,6 +618,13 @@ def parse_arguments():
         help="设置日志级别 (默认: INFO)"
     )
     
+    # 工作目录参数
+    parser.add_argument(
+        "--working-dir", "-w",
+        type=str,
+        help="设置Agent的初始工作目录"
+    )
+    
     # 其他选项
     parser.add_argument(
         "--version", 
@@ -639,6 +648,26 @@ if __name__ == "__main__":
     # 解析命令行参数
     args = parse_arguments()
     
+    # 设置工作目录
+    if args.working_dir:
+        # 展开用户路径（如~）
+        working_dir = os.path.expanduser(args.working_dir)
+        
+        # 检查目录是否存在
+        if not os.path.exists(working_dir):
+            print(f"❌ 工作目录不存在: {working_dir}")
+            logger.error(f"工作目录不存在: {working_dir}")
+            exit(1)
+        
+        if not os.path.isdir(working_dir):
+            print(f"❌ 指定的路径不是目录: {working_dir}")
+            logger.error(f"指定的路径不是目录: {working_dir}")
+            exit(1)
+        
+        # 更新配置
+        CONFIG["working_directory"] = os.path.abspath(working_dir)
+        print(f"🗂️ 设置工作目录: {CONFIG['working_directory']}")
+    
     # 设置日志级别
     logging.getLogger().setLevel(getattr(logging, args.log_level))
     logger.setLevel(getattr(logging, args.log_level))
@@ -650,6 +679,8 @@ if __name__ == "__main__":
     print(f"📊 健康检查: http://{args.host}:{args.port}/api/health")
     print(f"🔧 调试模式: {'启用' if args.debug else '禁用'}")
     print(f"🌍 Web模式: {'启用' if args.web_mode else '禁用'}")
+    if args.working_dir:
+        print(f"🗂️ 工作目录: {CONFIG['working_directory']}")
     print(f"📝 日志级别: {args.log_level}")
     print()
     

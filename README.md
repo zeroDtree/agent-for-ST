@@ -5,8 +5,9 @@
 	- [2. 使用方法](#2-使用方法)
 		- [2.1. 基本使用](#21-基本使用)
 			- [2.1.1. 安装依赖](#211-安装依赖)
-			- [2.1.2. 运行`web_server.py`](#212-运行web_serverpy)
-			- [2.1.3. SillyTavern 配置](#213-sillytavern-配置)
+			- [2.1.2. 语言模型（`llms/llm.py`里的`get_llm_model`函数）是需要自己重新配置的。](#212-语言模型llmsllmpy里的get_llm_model函数是需要自己重新配置的)
+			- [2.1.3. 运行`web_server.py`](#213-运行web_serverpy)
+			- [2.1.4. SillyTavern 配置](#214-sillytavern-配置)
 		- [2.2. 博客知识库](#22-博客知识库)
 			- [2.2.1. 博客知识库配置](#221-博客知识库配置)
 			- [2.2.2. 创建/更新博客知识库](#222-创建更新博客知识库)
@@ -32,7 +33,9 @@ cd agent-for-ST
 pip install -r requirements.txt
 ```
 
-#### 2.1.2. 运行`web_server.py`
+#### 2.1.2. 语言模型（`llms/llm.py`里的`get_llm_model`函数）是需要自己重新配置的。
+
+#### 2.1.3. 运行`web_server.py`
 
 ```bash
 python web_server.py
@@ -40,7 +43,25 @@ python web_server.py
 
 运行成功后会监听默认`http://127.0.0.1:5000`
 
-#### 2.1.3. SillyTavern 配置
+命令行参数：
+
+```bash
+options:
+  -h, --help            show this help message and exit
+  --host HOST           服务器监听的主机地址 (默认: 0.0.0.0)
+  --port PORT           服务器监听的端口号 (默认: 5000)
+  --debug               启用Flask调试模式 (默认: 关闭)
+  --no-debug            强制禁用调试模式
+  --web-mode            启用Web模式 (默认: 启用)
+  --no-web-mode         禁用Web模式
+  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        设置日志级别 (默认: INFO)
+  --working-dir WORKING_DIR, -w WORKING_DIR
+                        设置Agent的初始工作目录
+  --version             show program's version number and exit
+```
+
+#### 2.1.4. SillyTavern 配置
 
 假定你已经安装了 SillyTavern。
 

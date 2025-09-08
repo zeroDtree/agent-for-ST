@@ -9,6 +9,8 @@ CONFIG: Dict[str, Any] = {
     "max_history_messages": 10000,
     "command_timeout": 30,
     "log_level": "INFO",
+    # 工作目录配置
+    "working_directory": None,  # Agent的初始工作目录，None表示使用当前目录
     # 博客知识库配置
     "blog_path": "data/blog_content",
     "vector_db_path": "data/vector_db",
@@ -30,7 +32,7 @@ TOOL_SECURITY_CONFIG = {
     # 安全工具列表（无需用户确认）
     "safe_tools": {"update_blog_knowledge_base", "search_blog_knowledge_base", "get_blog_knowledge_base_stats"},
     # Shell命令工具列表
-    "shell_tools": {"run_shell_command_tool", "run_shell_command_popen_tool"},
+    "shell_tools": {"run_shell_command_popen_tool"},
     # 需要确认的工具列表
     "confirm_required_tools": {
         # 可以在这里添加其他需要确认的工具

@@ -2,6 +2,7 @@ from langchain_core.tools import tool
 from config.config import CONFIG
 from utils.logger import log_command_execution
 import subprocess
+import os
 
 @tool
 def run_shell_command_popen_tool(command: str) -> str:
@@ -10,13 +11,23 @@ def run_shell_command_popen_tool(command: str) -> str:
         # 记录命令执行
         log_command_execution(command, "system", "executing")
         
+        # 获取工作目录
+        working_dir = CONFIG.get("working_directory", None)
+        if working_dir and os.path.exists(working_dir):
+            # 如果配置了工作目录且存在，则使用配置的目录
+            cwd = working_dir
+        else:
+            # 否则使用当前目录
+            cwd = None
+        
         # 统一通过shell执行命令
         result = subprocess.run(
             command,
             shell=True,
             capture_output=True,
             text=True,
-            timeout=CONFIG["command_timeout"]
+            timeout=CONFIG["command_timeout"],
+            cwd=cwd
         )
         
         output = result.stdout
