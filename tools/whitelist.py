@@ -1,15 +1,16 @@
-# 命令白名单配置
-# 这些命令被认为是安全的，不需要用户确认就可以直接执行
+# Command whitelist configuration
+# These commands are considered safe and can be executed directly without user confirmation
 
 SAFE_COMMANDS = {
-    # 文件系统操作
+    # File system operations
     "ls",
     "dir",
     "pwd",
     "cd",
     "mkdir",
     "rmdir",
-    # 文件查看和搜索
+    "touch",
+    # File viewing and searching
     "cat",
     "head",
     "tail",
@@ -18,7 +19,9 @@ SAFE_COMMANDS = {
     "grep",
     "find",
     "locate",
-    # 系统信息
+    "awk",
+    "sed",
+    # System information
     "whoami",
     "hostname",
     "uname",
@@ -26,7 +29,7 @@ SAFE_COMMANDS = {
     "ps",
     "top",
     "htop",
-    # 网络相关
+    # Network related
     "ping",
     "curl",
     "wget",
@@ -34,43 +37,74 @@ SAFE_COMMANDS = {
     "ss",
     "ip",
     "ifconfig",
-    # 包管理（只读操作）
+    # Package management (read-only operations)
     "dpkg",
     "rpm",
     "pacman",
     "apt",
     "yum",
     "brew",
-    # 其他安全命令
+    # Debug and development tools (safe read-only operations)
+    "file",
+    "stat",
+    "du",
+    "diff",
+    "cmp",
+    "hexdump",
+    "od",
+    "strings",
+    "tree",
+    "ldd",
+    "nm",
+    "objdump",
+    "readelf",
+    "size",
+    "md5sum",
+    "sha256sum",
+    "sha1sum",
+    # Text processing for debugging
+    "sort",
+    "uniq",
+    "cut",
+    "tr",
+    "column",
+    "paste",
+    "join",
+    "comm",
+    "tac",
+    "rev",
+    # Other safe commands
     "echo",
     "date",
     "cal",
     "bc",
     "wc",
-    "sort",
-    "uniq",
-    "cut",
-    "tr",
     "which",
     "whereis",
     "type",
     "alias",
     "history",
     "clear",
-    # 环境变量
+    # Environment variables
     "env",
     "export",
     "set",
     "printenv",
-    # 压缩解压（只读）
+    # Compression and decompression (read-only)
     "tar",
     "gzip",
     "gunzip",
     "zip",
     "unzip",
+    # Safe programming language tools (read-only operations)
+    "python3",
+    "python",
+    "node",
+    "npm",
+    "pip",
 }
 
-# 危险命令黑名单（即使包含在白名单中也会被拒绝）
+# Dangerous command blacklist (will be rejected even if included in whitelist)
 DANGEROUS_COMMANDS = {
     "del",
     "format",
@@ -114,69 +148,95 @@ DANGEROUS_COMMANDS = {
     "sqlite3",
     "git",
     "svn",
-    "hg",  # 版本控制可能修改代码
+    "hg",  # Version control may modify code
     "wget",
-    "curl",  # 下载可能不安全
+    "curl",  # Downloads may be unsafe
     "scp",
     "rsync",
-    "sftp",  # 文件传输
+    "sftp",  # File transfer
     "ssh",
     "telnet",
     "nc",
-    "netcat",  # 网络连接
-    "python",
-    "python3",
-    "node",
-    "npm",
-    "pip",  # 脚本执行
+    "netcat",  # Network connections
+    # Removed python, node, npm, pip from dangerous list as they can be safe for debugging in restricted mode
     "bash",
     "sh",
     "zsh",
-    "fish",  # shell执行
+    "fish",  # Shell execution
     "vim",
     "nano",
-    "emacs",  # 编辑器
+    "emacs",  # Editors
     "nmap",
     "traceroute",
     "dig",
-    "nslookup",  # 网络探测
+    "nslookup",  # Network probing
 }
 
 
 def is_safe_command(command: str) -> bool:
     """
-    检查命令是否在白名单中且不在黑名单中
+    Check if command is in whitelist and not in blacklist
 
     Args:
-        command: 要检查的命令字符串
+        command: Command string to check
 
     Returns:
-        bool: 如果命令安全返回True，否则返回False
+        bool: True if command is safe, False otherwise
     """
-    # 提取命令的基本部分（第一个单词）
+    # Extract basic part of command (first word)
     command_parts = command.strip().split()
     if not command_parts:
         return False
 
     base_command = command_parts[0].lower()
 
-    # 检查是否在黑名单中
+    # Check if in blacklist
     if base_command in DANGEROUS_COMMANDS:
         return False
 
-    # 检查是否在白名单中
+    # Check if in whitelist
     return base_command in SAFE_COMMANDS
+
+
+def is_safe_command_with_restrictions(command: str) -> bool:
+    """
+    Check if command is safe considering directory restrictions
+    
+    Args:
+        command: Command string to check
+        
+    Returns:
+        bool: True if command is safe under current restrictions, False otherwise
+    """
+    from config.config import CONFIG
+    
+    # First check basic safety
+    if not is_safe_command(command):
+        return False
+    
+    # If not in restricted mode, use regular whitelist check
+    if not CONFIG.get("restricted_mode", False):
+        return True
+    
+    # In restricted mode, perform additional path validation
+    try:
+        from utils.path_validator import validate_command_paths
+        is_allowed, reason, paths = validate_command_paths(command)
+        return is_allowed
+    except ImportError:
+        # Fallback to basic check if path validator is not available
+        return True
 
 
 def get_command_category(command: str) -> str:
     """
-    获取命令的分类
+    Get command category
 
     Args:
-        command: 命令字符串
+        command: Command string
 
     Returns:
-        str: 命令分类
+        str: Command category
     """
     command_parts = command.strip().split()
     if not command_parts:
@@ -190,3 +250,70 @@ def get_command_category(command: str) -> str:
         return "safe"
     else:
         return "unknown"
+
+
+def should_auto_approve_command(command: str) -> tuple[bool, str]:
+    """
+    Check if command should be auto-approved based on current auto mode
+    
+    Args:
+        command: Command to check
+        
+    Returns:
+        tuple[bool, str]: (should_auto_approve, reason)
+    """
+    from config.config import CONFIG
+    
+    auto_mode = CONFIG.get("auto_mode", "manual")
+    
+    if auto_mode == "manual":
+        return False, "Manual mode - requires human confirmation"
+    
+    # Get command safety info
+    is_safe = is_safe_command(command)
+    category = get_command_category(command)
+    
+    if auto_mode == "blacklist_reject":
+        # Auto reject blacklist commands, manual for others
+        if category == "dangerous":
+            return False, "Auto-rejected: dangerous command in blacklist"
+        return False, "Blacklist reject mode - non-blacklist commands need manual confirmation"
+    
+    elif auto_mode == "universal_reject":
+        # Auto reject all commands requiring confirmation
+        return False, "Auto-rejected: universal reject mode"
+    
+    elif auto_mode == "whitelist_accept":
+        # Auto accept non-blacklist commands (whitelist + unknown)
+        if category == "dangerous":
+            return False, "Auto-rejected: dangerous command in blacklist"
+        return True, f"Auto-approved: non-blacklist command ({category})"
+    
+    elif auto_mode == "universal_accept":
+        # Auto accept all commands (including blacklist)
+        return True, f"Auto-approved: universal accept mode ({category})"
+    
+    else:
+        return False, f"Unknown auto mode: {auto_mode}"
+
+
+def get_auto_mode_description() -> str:
+    """
+    Get description of current auto mode
+    
+    Returns:
+        str: Description of current auto mode
+    """
+    from config.config import CONFIG
+    
+    auto_mode = CONFIG.get("auto_mode", "manual")
+    
+    descriptions = {
+        "manual": "🤚 Manual Mode - All commands require human confirmation",
+        "blacklist_reject": "🚫 Blacklist Reject - Auto-reject dangerous commands, manual for others",
+        "universal_reject": "⛔ Universal Reject - Auto-reject all commands requiring confirmation",
+        "whitelist_accept": "✅ Whitelist Accept - Auto-accept non-blacklist commands",
+        "universal_accept": "🟢 Universal Accept - Auto-accept ALL commands (including dangerous ones)"
+    }
+    
+    return descriptions.get(auto_mode, f"❓ Unknown mode: {auto_mode}")

@@ -1,17 +1,18 @@
 # Agent-For-SillyTavern
 
 - [Agent-For-SillyTavern](#agent-for-sillytavern)
-	- [1. 功能介绍](#1-功能介绍)
-	- [2. 使用方法](#2-使用方法)
-		- [2.1. 基本使用](#21-基本使用)
-			- [2.1.1. 安装依赖](#211-安装依赖)
-			- [2.1.2. 语言模型（`llms/llm.py`里的`get_llm_model`函数）是需要自己重新配置的。](#212-语言模型llmsllmpy里的get_llm_model函数是需要自己重新配置的)
-			- [2.1.3. 运行`web_server.py`](#213-运行web_serverpy)
-			- [2.1.4. SillyTavern 配置](#214-sillytavern-配置)
-		- [2.2. 博客知识库](#22-博客知识库)
-			- [2.2.1. 博客知识库配置](#221-博客知识库配置)
-			- [2.2.2. 创建/更新博客知识库](#222-创建更新博客知识库)
-	- [3. 效果图](#3-效果图)
+  - [1. 功能介绍](#1-功能介绍)
+  - [2. 使用方法](#2-使用方法)
+    - [2.1. 基本使用](#21-基本使用)
+      - [2.1.1. 安装依赖](#211-安装依赖)
+      - [2.1.2. 语言模型（`llms/llm.py`里的`get_llm_model`函数）是需要自己重新配置的。](#212-语言模型llmsllmpy里的get_llm_model函数是需要自己重新配置的)
+      - [2.1.3. 运行`web_server.py`](#213-运行web_serverpy)
+      - [2.1.4. SillyTavern 配置](#214-sillytavern-配置)
+    - [2.2. 博客知识库](#22-博客知识库)
+      - [2.2.1. 博客知识库配置](#221-博客知识库配置)
+      - [2.2.2. 创建/更新博客知识库](#222-创建更新博客知识库)
+  - [文档](#文档)
+  - [3. 效果图](#3-效果图)
 
 ## 1. 功能介绍
 
@@ -46,19 +47,30 @@ python web_server.py
 命令行参数：
 
 ```bash
+usage: web_server.py [-h] [--host HOST] [--port PORT] [--debug] [--no-debug] [--web-mode] [--no-web-mode] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--working-dir WORKING_DIR]
+                     [--restricted-dir RESTRICTED_DIR] [--allow-parent-read] [--auto-mode {manual,blacklist_reject,universal_reject,whitelist_accept,universal_accept}] [--version]
+
+AI Agent Web Server - Provides OpenAI compatible API interface
+
 options:
   -h, --help            show this help message and exit
-  --host HOST           服务器监听的主机地址 (默认: 0.0.0.0)
-  --port PORT           服务器监听的端口号 (默认: 5000)
-  --debug               启用Flask调试模式 (默认: 关闭)
-  --no-debug            强制禁用调试模式
-  --web-mode            启用Web模式 (默认: 启用)
-  --no-web-mode         禁用Web模式
+  --host HOST           Server listening host address (default: 0.0.0.0)
+  --port PORT           Server listening port number (default: 5000)
+  --debug               Enable Flask debug mode (default: off)
+  --no-debug            Force disable debug mode
+  --web-mode            Enable Web mode (default: enabled)
+  --no-web-mode         Disable Web mode
   --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
-                        设置日志级别 (默认: INFO)
+                        Set log level (default: INFO)
   --working-dir WORKING_DIR, -w WORKING_DIR
-                        设置Agent的初始工作目录
+                        Set the initial working directory for the Agent
+  --restricted-dir RESTRICTED_DIR, -r RESTRICTED_DIR
+                        Enable restricted mode and confine AI to the specified directory
+  --allow-parent-read   In restricted mode, allow reading files from parent directories
+  --auto-mode {manual,blacklist_reject,universal_reject,whitelist_accept,universal_accept}
+                        Set automatic command handling mode (default: manual)
   --version             show program's version number and exit
+
 ```
 
 #### 2.1.4. SillyTavern 配置
@@ -69,11 +81,11 @@ SillyTavern 的 API 地址配置成` http://0.0.0.0:5000/v1`.
 
 安装[酒馆助手](https://n0vi028.github.io/JS-Slash-Runner-Doc/)
 
-导入角色卡`char-cards/MyAgent.json`到 SillyTavern，角色卡里包含`角色定义`以及`工具调用确认`的 js 脚本。
+导入[角色卡](./char-cards/Qwer.json)到 SillyTavern，角色卡里包含`角色定义`以及`工具调用确认`的 js 脚本。
 
 其中角色定义你可以按照你的需求随意更改。
 
-为了显示 latex 公式，需要安装[酒馆 latex 插件](https://github.com/SillyTavern/Extension-LaTeX), 角色卡`char-cards/MyAgent.json`里已经包含了显示数学公式的正则表达式。
+为了显示 latex 公式，需要安装[酒馆 latex 插件](https://github.com/SillyTavern/Extension-LaTeX), [角色卡](./char-cards/Qwer.json)里已经包含了显示数学公式的正则表达式。
 
 ### 2.2. 博客知识库
 
@@ -109,6 +121,11 @@ python manage_kb.py update
 ```
 
 目前的代码只扫描博客内容目录下的`*.md`文件，其他格式文件不会被索引。
+
+## 文档
+
+[命令检查流程](./doc/command-check-flow.md)
+[自动拒绝模式](./doc/auto-reject.md)
 
 ## 3. 效果图
 

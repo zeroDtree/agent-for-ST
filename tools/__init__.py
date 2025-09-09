@@ -1,4 +1,4 @@
-# 导入所有工具
+# Import all tools
 from .shell import run_shell_command_popen_tool
 from .whitelist import is_safe_command
 from .knowledge_base import (
@@ -7,7 +7,7 @@ from .knowledge_base import (
     get_blog_knowledge_base_stats
 )
 
-# 工具列表，方便扩展
+# Tool list for easy extension
 ALL_TOOLS = [
     run_shell_command_popen_tool,
     update_blog_knowledge_base,

@@ -1,184 +1,133 @@
-from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.memory import InMemorySaver
+# offical package
 from langchain_core.messages import HumanMessage
 import argparse
 import os
 
-# 配置和utils
-from config.config import CONFIG, TOOL_SECURITY_CONFIG
-from utils.logger import logger
-from utils.monitor import monitor_performance
-from utils.history import cleanup_old_messages
-from utils.cache import cached_is_safe_command
 
-# 自定义包
-from llms.llm_with_tools import llm_with_tools
-from tools import ALL_TOOLS
-from states.state import State
-from nodes.human import get_human_confirm_node
+# Custom packages
 from utils.preset import preset_messages
-
-# langchain.debug = True
-
-
-@monitor_performance
-def chatbot(state: State):
-    """主聊天函数，带性能监控"""
-    state["messages"] = cleanup_old_messages(state["messages"])
-    messages = state["messages"]
-    response = llm_with_tools.invoke(messages)
-    return {"messages": [response]}
-
-
-def create_graph(tools=None, checkpointer=None, web_mode=False):
-    """创建图结构，支持依赖注入"""
-    if tools is None:
-        tools = ALL_TOOLS
-
-    # if checkpointer is None:
-    #     checkpointer = InMemorySaver()
-
-    tool_node = ToolNode(tools=tools)
-    graph_builder = StateGraph(State)
-
-    graph_builder.add_node("my_tools", tool_node)
-    graph_builder.add_node("chatbot", chatbot)
-    graph_builder.add_node(
-        "human_confirm", get_human_confirm_node(next_node_for_yes="my_tools", next_node_for_no="chatbot", web_mode=web_mode)
-    )
-    graph_builder.add_edge(START, "chatbot")
-    graph_builder.add_edge("my_tools", "chatbot")
-
-    def chatbot_route(state: State):
-        """路由函数，处理工具调用"""
-        try:
-            if isinstance(state, list):
-                ai_message = state[-1]
-            elif messages := state.get("messages", []):
-                ai_message = messages[-1]
-            else:
-                raise ValueError(f"No messages found in input state to tool_edge: {state}")
-
-            if hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
-                # 从配置文件获取工具分类
-                safe_tools = TOOL_SECURITY_CONFIG["safe_tools"]
-                shell_tools = TOOL_SECURITY_CONFIG["shell_tools"]
-                confirm_required_tools = TOOL_SECURITY_CONFIG["confirm_required_tools"]
-                
-                # 记录工具调用信息
-                tool_names = [tool_call.get("name", "unknown") for tool_call in ai_message.tool_calls]
-                logger.info(f"检测到工具调用: {', '.join(tool_names)}")
-                
-                for tool_call in ai_message.tool_calls:
-                    tool_name = tool_call.get("name", "")
-                    args = tool_call.get("args", {})
-                    
-                    # 处理安全工具（直接执行）
-                    if tool_name in safe_tools:
-                        logger.info(f"安全工具调用: {tool_name}")
-                        print(f"🟢 安全工具，直接执行: {tool_name}")
-                        return "my_tools"
-                    
-                    # 处理需要确认的工具
-                    elif tool_name in confirm_required_tools:
-                        logger.info(f"需要确认的工具调用: {tool_name}")
-                        print(f"⚠️ 需要确认的工具: {tool_name}")
-                        return "human_confirm"
-                    
-                    # 处理shell命令工具
-                    elif tool_name in shell_tools:
-                        command = args.get("command", "")
-                        logger.info(f"Shell命令工具调用: {tool_name}, 命令: {command}")
-                        
-                        # 使用缓存的白名单检查
-                        if cached_is_safe_command(command):
-                            print(f"🟢 白名单命令，直接执行: {command}")
-                            return "my_tools"
-                        else:
-                            # 非白名单命令，需要用户确认
-                            print(f"⚠️ 非白名单命令，需要确认: {command}")
-                            return "human_confirm"
-                    
-                    # 其他工具默认需要确认
-                    else:
-                        logger.warning(f"未知工具调用: {tool_name}")
-                        print(f"⚠️ 未知工具，需要确认: {tool_name}")
-                        return "human_confirm"
-            
-            return END
-            
-        except Exception as e:
-            logger.error(f"路由函数执行出错: {e}")
-            print(f"🚫 路由处理出错: {e}")
-            return END
-
-    graph_builder.add_conditional_edges(
-        "chatbot",
-        chatbot_route,
-    )
-
-    return graph_builder.compile(checkpointer=checkpointer)
+from config.config import CONFIG
+from utils.logger import logger
+from graphs.graph import create_graph
 
 
 def parse_arguments():
-    """解析命令行参数"""
+    """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description="AI Agent 控制台应用",
+        description="AI Agent Console Application",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例用法:
-  %(prog)s                          # 使用默认配置启动
-  %(prog)s --working-dir /path      # 设置工作目录
-  %(prog)s -w ~/projects            # 使用简短参数设置工作目录
-        """
+Example usage:
+  %(prog)s                          # Start with default configuration
+  %(prog)s --working-dir /path      # Set working directory
+  %(prog)s -w ~/projects            # Use short parameter to set working directory
+  %(prog)s -r /path/to/debug        # Enable restricted mode for debugging in specific directory
+  %(prog)s -r ~/project --allow-parent-read  # Restricted mode with parent directory read access
+        """,
     )
-    
+
+    parser.add_argument("--working-dir", "-w", type=str, help="Set the initial working directory for the Agent")
+
     parser.add_argument(
-        "--working-dir", "-w",
-        type=str,
-        help="设置Agent的初始工作目录"
+        "--restricted-dir", "-r", type=str, help="Enable restricted mode and confine AI to the specified directory"
     )
-    
+
     parser.add_argument(
-        "--version",
-        action="version",
-        version="AI Agent Console v1.0.0"
+        "--allow-parent-read",
+        action="store_true",
+        help="In restricted mode, allow reading files from parent directories",
     )
-    
+
+    parser.add_argument(
+        "--auto-mode",
+        choices=["manual", "blacklist_reject", "universal_reject", "whitelist_accept", "universal_accept"],
+        default="manual",
+        help="Set automatic command handling mode (default: manual)",
+    )
+
+    parser.add_argument("--version", action="version", version="AI Agent Console v1.0.0")
+
     return parser.parse_args()
 
 
 def main():
-    """主程序"""
+    """Main program"""
     try:
-        # 解析命令行参数
+        # Parse command line arguments
         args = parse_arguments()
-        
-        # 设置工作目录
-        if args.working_dir:
-            # 展开用户路径（如~）
-            working_dir = os.path.expanduser(args.working_dir)
-            
-            # 检查目录是否存在
-            if not os.path.exists(working_dir):
-                print(f"❌ 工作目录不存在: {working_dir}")
-                logger.error(f"工作目录不存在: {working_dir}")
-                return
-            
-            if not os.path.isdir(working_dir):
-                print(f"❌ 指定的路径不是目录: {working_dir}")
-                logger.error(f"指定的路径不是目录: {working_dir}")
-                return
-            
-            # 更新配置
-            CONFIG["working_directory"] = os.path.abspath(working_dir)
-            print(f"🗂️ 设置工作目录: {CONFIG['working_directory']}")
-            logger.info(f"设置工作目录: {CONFIG['working_directory']}")
-        
-        logger.info("启动AI助手系统")
 
-        # 初始化图
+        # Set working directory
+        if args.working_dir:
+            # Expand user path (like ~)
+            working_dir = os.path.expanduser(args.working_dir)
+
+            # Check if directory exists
+            if not os.path.exists(working_dir):
+                print(f"❌ Working directory does not exist: {working_dir}")
+                logger.error(f"Working directory does not exist: {working_dir}")
+                return
+
+            if not os.path.isdir(working_dir):
+                print(f"❌ Specified path is not a directory: {working_dir}")
+                logger.error(f"Specified path is not a directory: {working_dir}")
+                return
+
+            # Update configuration
+            CONFIG["working_directory"] = os.path.abspath(working_dir)
+            print(f"🗂️ Working directory set: {CONFIG['working_directory']}")
+            logger.info(f"Working directory set: {CONFIG['working_directory']}")
+
+        # Set restricted directory mode
+        if args.restricted_dir:
+            # Expand user path (like ~)
+            restricted_dir = os.path.expanduser(args.restricted_dir)
+
+            # Check if directory exists
+            if not os.path.exists(restricted_dir):
+                print(f"❌ Restricted directory does not exist: {restricted_dir}")
+                logger.error(f"Restricted directory does not exist: {restricted_dir}")
+                return
+
+            if not os.path.isdir(restricted_dir):
+                print(f"❌ Specified path is not a directory: {restricted_dir}")
+                logger.error(f"Specified path is not a directory: {restricted_dir}")
+                return
+
+            # Enable restricted mode
+            CONFIG["restricted_mode"] = True
+            CONFIG["allowed_directory"] = os.path.abspath(restricted_dir)
+            CONFIG["allow_parent_read"] = args.allow_parent_read
+
+            # Also set as working directory if not already set
+            if not args.working_dir:
+                CONFIG["working_directory"] = CONFIG["allowed_directory"]
+
+            # Display restriction info
+            try:
+                from utils.path_validator import format_restriction_info
+
+                restriction_info = format_restriction_info()
+                print(restriction_info)
+                logger.info(f"Restricted mode enabled: {CONFIG['allowed_directory']}")
+            except ImportError:
+                print(f"🔒 Restricted mode enabled, directory: {CONFIG['allowed_directory']}")
+                logger.info(f"Restricted mode enabled: {CONFIG['allowed_directory']}")
+
+        # Set auto mode
+        if args.auto_mode != "manual":
+            CONFIG["auto_mode"] = args.auto_mode
+            try:
+                from tools.whitelist import get_auto_mode_description
+                mode_description = get_auto_mode_description()
+                print(mode_description)
+                logger.info(f"Auto mode enabled: {args.auto_mode}")
+            except ImportError:
+                print(f"🤖 Auto mode enabled: {args.auto_mode}")
+                logger.info(f"Auto mode enabled: {args.auto_mode}")
+
+        logger.info("Starting AI assistant system")
+
+        # Initialize graph
         graph = create_graph()
 
         is_first = True
@@ -186,7 +135,7 @@ def main():
 
         while True:
             try:
-                input_str = input("👤 您: ")
+                input_str = input("👤 You: ")
 
                 input_state = {
                     "messages": (
@@ -198,7 +147,7 @@ def main():
 
                 is_first = False
 
-                print("⏳ 正在处理您的请求...", end="", flush=True)
+                print("⏳ Processing your request...", end="", flush=True)
 
                 events = graph.stream(
                     input=input_state,
@@ -209,24 +158,24 @@ def main():
                     stream_mode=CONFIG["stream_mode"],
                 )
 
-                print("\r", end="", flush=True)  # 清除进度显示
+                print("\r", end="", flush=True)  # Clear progress display
 
                 for event in events:
                     if event.get("messages") and len(event["messages"]) > 0:
                         event["messages"][-1].pretty_print()
-                        # 保存消息到历史
+                        # Save messages to history
                         messages_history.extend(event["messages"])
 
             except KeyboardInterrupt:
-                print("\n\n👋 退出程序")
+                print("\n\n👋 Exiting program")
                 break
             except Exception as e:
-                logger.error(f"处理请求时出错: {e}")
-                print(f"🚫 出现错误，请重试: {e}")
+                logger.error(f"Error processing request: {e}")
+                print(f"🚫 Error occurred, please try again: {e}")
 
     except Exception as e:
-        logger.error(f"系统启动失败: {e}")
-        print(f"🚫 系统启动失败: {e}")
+        logger.error(f"System startup failed: {e}")
+        print(f"🚫 System startup failed: {e}")
 
 
 if __name__ == "__main__":

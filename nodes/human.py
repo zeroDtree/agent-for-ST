@@ -22,18 +22,18 @@ def get_human_confirm_node(next_node_for_yes: str, next_node_for_no: str, web_mo
 
 
 def console_confirm(state: State, tool_call_message, next_node_for_yes: str, next_node_for_no: str):
-    """控制台模式的确认"""
+    """Console mode confirmation"""
     print(tool_call_message)
-    human_str = input(f"接下来将执行{tool_call_message.content}，\n是否执行？ (yes/no)：")
+    human_str = input(f"About to execute {tool_call_message.content},\nDo you want to proceed? (yes/no): ")
     if human_str in ["y", "Y", "yes", "Yes", "YES"]:
         return Command(goto=next_node_for_yes)
     else:
-        # 当用户拒绝时，添加工具响应消息表示拒绝
+        # When user rejects, add tool response message indicating rejection
         messages = state["messages"]
         tool_messages = []
         for tool_call in tool_call_message.tool_calls:
             tool_message = ToolMessage(
-                content="用户拒绝执行此工具调用",
+                content="User rejected execution of this tool call",
                 tool_call_id=tool_call["id"]
             )
             tool_messages.append(tool_message)
@@ -42,17 +42,17 @@ def console_confirm(state: State, tool_call_message, next_node_for_yes: str, nex
 
 
 def web_confirm(state: State, tool_call_message, next_node_for_yes: str, next_node_for_no: str):
-    """Web模式的确认 - 通过API接口与前端交互"""
-    # 获取全局的pending_confirmations（需要在web_server中定义）
+    """Web mode confirmation - interact with frontend through API interface"""
+    # Get global pending_confirmations (needs to be defined in web_server)
     try:
-        # 动态导入，避免循环导入
+        # Dynamic import to avoid circular import
         import web_server
         pending_confirmations = web_server.pending_confirmations
     except ImportError:
-        logger.error("Web模式确认需要web_server模块")
+        logger.error("Web mode confirmation requires web_server module")
         return console_confirm(state, tool_call_message, next_node_for_yes, next_node_for_no)
     
-    # 提取命令信息
+    # Extract command information
     command_info = ""
     tool_name = "unknown"
     
@@ -66,10 +66,10 @@ def web_confirm(state: State, tool_call_message, next_node_for_yes: str, next_no
         else:
             command_info = f"{tool_name}: {str(args)}"
     
-    # 生成会话ID（这里简化处理，实际应用中可以从请求中获取）
+    # Generate session ID (simplified here, can be obtained from request in actual application)
     session_id = getattr(state, 'session_id', 'default')
     
-    # 创建确认事件
+    # Create confirmation event
     confirmation_event = threading.Event()
     confirmation_result = {"confirmed": False}
     
@@ -77,14 +77,14 @@ def web_confirm(state: State, tool_call_message, next_node_for_yes: str, next_no
         confirmation_result["confirmed"] = confirmed
         confirmation_event.set()
     
-    # 添加到待确认列表
+    # Add to pending confirmation list
     pending_confirmations[session_id] = {
         "command": command_info,
         "tool_name": tool_name,
         "callback": confirmation_callback
     }
     
-    # 通过SSE推送确认请求
+    # Push confirmation request through SSE
     try:
         web_server.send_sse_event(session_id, {
             "type": "confirmation_request",
@@ -92,43 +92,43 @@ def web_confirm(state: State, tool_call_message, next_node_for_yes: str, next_no
             "tool_name": tool_name,
             "session_id": session_id
         })
-        logger.info(f"已通过SSE推送确认请求: {command_info}")
+        logger.info(f"Confirmation request pushed via SSE: {command_info}")
     except Exception as e:
-        logger.warning(f"SSE推送失败，将依赖轮询机制: {e}")
+        logger.warning(f"SSE push failed, will rely on polling mechanism: {e}")
     
-    logger.info(f"等待Web前端确认命令: {command_info}")
+    logger.info(f"Waiting for web frontend to confirm command: {command_info}")
     
-    # 等待前端确认（设置超时）
-    timeout = 300  # 5分钟超时
+    # Wait for frontend confirmation (with timeout)
+    timeout = 300  # 5 minute timeout
     if confirmation_event.wait(timeout):
-        # 用户已做出选择
+        # User has made a choice
         if confirmation_result["confirmed"]:
-            logger.info(f"用户确认执行命令: {command_info}")
+            logger.info(f"User confirmed command execution: {command_info}")
             return Command(goto=next_node_for_yes)
         else:
-            logger.info(f"用户拒绝执行命令: {command_info}")
-            # 添加拒绝消息
+            logger.info(f"User rejected command execution: {command_info}")
+            # Add rejection message
             tool_messages = []
             for tool_call in tool_call_message.tool_calls:
                 tool_message = ToolMessage(
-                    content="用户拒绝执行此工具调用",
+                    content="User rejected execution of this tool call",
                     tool_call_id=tool_call["id"]
                 )
                 tool_messages.append(tool_message)
             
             return Command(goto=next_node_for_no, update={"messages": tool_messages})
     else:
-        # 超时处理
-        logger.warning(f"命令确认超时: {command_info}")
-        # 清理待确认状态
+        # Timeout handling
+        logger.warning(f"Command confirmation timeout: {command_info}")
+        # Clean up pending confirmation status
         if session_id in pending_confirmations:
             del pending_confirmations[session_id]
         
-        # 添加超时消息
+        # Add timeout message
         tool_messages = []
         for tool_call in tool_call_message.tool_calls:
             tool_message = ToolMessage(
-                content="命令确认超时，已自动拒绝执行",
+                content="Command confirmation timeout, automatically rejected execution",
                 tool_call_id=tool_call["id"]
             )
             tool_messages.append(tool_message)

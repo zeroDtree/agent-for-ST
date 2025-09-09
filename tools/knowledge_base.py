@@ -1,6 +1,6 @@
 """
-博客知识库工具
-将博客内容转换为向量数据库，供AI检索使用
+Blog knowledge base tools
+Convert blog content to vector database for AI retrieval
 """
 
 import os
@@ -32,89 +32,89 @@ from utils.logger import logger
 
 
 class BlogKnowledgeBase:
-    """博客知识库管理器"""
+    """Blog knowledge base manager"""
     
     def __init__(self, blog_path: str, vector_db_path: str = "data/vector_db"):
         self.blog_path = Path(blog_path)
         self.vector_db_path = Path(vector_db_path)
         self.vector_db_path.mkdir(parents=True, exist_ok=True)
         
-        # 初始化嵌入模型 - 使用更好的中文模型
+        # Initialize embedding model - use better Chinese model
         embedding_model = CONFIG.get("embedding_model", "BAAI/bge-large-zh-v1.5")
         self.embeddings = HuggingFaceEmbeddings(
             model_name=embedding_model,
             model_kwargs={'device': 'cpu'},
-            encode_kwargs={'normalize_embeddings': True}  # 在编码时标准化embeddings
+            encode_kwargs={'normalize_embeddings': True}  # Normalize embeddings during encoding
         )
         
-        # 初始化文本分割器 - 使用配置中的参数
+        # Initialize text splitter - use parameters from configuration
         chunk_size = CONFIG.get("chunk_size", 512)
         chunk_overlap = CONFIG.get("chunk_overlap", 100)
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             length_function=len,
-            separators=["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""]  # 添加逗号分隔符
+            separators=["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""]  # Add comma separator
         )
         
-        # 初始化向量数据库
+        # Initialize vector database
         self.vectorstore = None
         self._load_vectorstore()
         
-        # 元数据文件路径
+        # Metadata file path
         self.metadata_file = self.vector_db_path / "metadata.json"
         self._load_metadata()
     
     def _load_vectorstore(self):
-        """加载向量数据库"""
+        """Load vector database"""
         try:
             if (self.vector_db_path / "chroma.sqlite3").exists():
                 self.vectorstore = Chroma(
                     persist_directory=str(self.vector_db_path),
                     embedding_function=self.embeddings
                 )
-                logger.info("向量数据库加载成功")
+                logger.info("Vector database loaded successfully")
             else:
-                logger.info("向量数据库不存在，将创建新的数据库")
+                logger.info("Vector database does not exist, will create new database")
         except Exception as e:
-            logger.error(f"加载向量数据库失败: {e}")
+            logger.error(f"Failed to load vector database: {e}")
             self.vectorstore = None
     
     def _load_metadata(self):
-        """加载元数据"""
+        """Load metadata"""
         self.metadata = {}
         if self.metadata_file.exists():
             try:
                 with open(self.metadata_file, 'r', encoding='utf-8') as f:
                     self.metadata = json.load(f)
             except Exception as e:
-                logger.error(f"加载元数据失败: {e}")
+                logger.error(f"Failed to load metadata: {e}")
                 self.metadata = {}
     
     def _save_metadata(self):
-        """保存元数据"""
+        """Save metadata"""
         try:
             with open(self.metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(self.metadata, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logger.error(f"保存元数据失败: {e}")
+            logger.error(f"Failed to save metadata: {e}")
     
     def _get_file_hash(self, file_path: Path) -> str:
-        """计算文件哈希值"""
+        """Calculate file hash"""
         try:
             with open(file_path, 'rb') as f:
                 return hashlib.md5(f.read()).hexdigest()
         except Exception as e:
-            logger.error(f"计算文件哈希失败 {file_path}: {e}")
+            logger.error(f"Failed to calculate file hash {file_path}: {e}")
             return ""
     
     def _parse_markdown_file(self, file_path: Path) -> Dict[str, Any]:
-        """解析Markdown文件"""
+        """Parse Markdown file"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            # 解析front matter
+            # Parse front matter
             front_matter = {}
             if content.startswith('---'):
                 parts = content.split('---', 2)
@@ -125,7 +125,7 @@ class BlogKnowledgeBase:
                     except yaml.YAMLError:
                         pass
             
-            # 转换Markdown为HTML
+            # Convert Markdown to HTML
             html_content = markdown.markdown(content, extensions=['codehilite', 'tables'])
             
             return {
@@ -138,11 +138,11 @@ class BlogKnowledgeBase:
                 'categories': front_matter.get('categories', [])
             }
         except Exception as e:
-            logger.error(f"解析Markdown文件失败 {file_path}: {e}")
+            logger.error(f"Failed to parse Markdown file {file_path}: {e}")
             return {'content': '', 'html_content': '', 'front_matter': {}, 'title': file_path.stem}
     
     def _should_update_file(self, file_path: Path) -> bool:
-        """检查文件是否需要更新"""
+        """Check if file needs to be updated"""
         file_hash = self._get_file_hash(file_path)
         relative_path = str(file_path.relative_to(self.blog_path))
         
@@ -153,33 +153,33 @@ class BlogKnowledgeBase:
         return file_hash != stored_hash
     
     def update_knowledge_base(self) -> Dict[str, Any]:
-        """更新知识库"""
+        """Update knowledge base"""
         if not self.blog_path.exists():
-            return {"success": False, "message": f"博客路径不存在: {self.blog_path}"}
+            return {"success": False, "message": f"Blog path does not exist: {self.blog_path}"}
         
-        logger.info(f"开始更新知识库，博客路径: {self.blog_path}")
+        logger.info(f"Starting knowledge base update, blog path: {self.blog_path}")
         
-        # 扫描所有Markdown文件
+        # Scan all Markdown files
         markdown_files = list(self.blog_path.rglob("*.md"))
-        logger.info(f"找到 {len(markdown_files)} 个Markdown文件")
+        logger.info(f"Found {len(markdown_files)} Markdown files")
         
         updated_files = []
         new_documents = []
         
         for file_path in markdown_files:
             if self._should_update_file(file_path):
-                logger.info(f"处理文件: {file_path}")
+                logger.info(f"Processing file: {file_path}")
                 
-                # 解析文件
+                # Parse file
                 parsed_content = self._parse_markdown_file(file_path)
                 
-                # 分割文本
+                # Split text
                 chunks = self.text_splitter.split_text(parsed_content['content'])
                 
-                # 创建文档对象
+                # Create document objects
                 for i, chunk in enumerate(chunks):
                     try:
-                        # 处理元数据，将列表转换为字符串，确保所有值都是基础类型
+                        # Process metadata, convert lists to strings, ensure all values are basic types
                         metadata = {
                             'source': str(file_path.relative_to(self.blog_path)),
                             'title': str(parsed_content['title']),
@@ -191,7 +191,7 @@ class BlogKnowledgeBase:
                             'file_path': str(file_path)
                         }
                         
-                        # 确保所有元数据值都是ChromaDB支持的类型
+                        # Ensure all metadata values are types supported by ChromaDB
                         filtered_metadata = {}
                         for key, value in metadata.items():
                             if value is None:
@@ -201,12 +201,12 @@ class BlogKnowledgeBase:
                             else:
                                 filtered_metadata[key] = str(value)
                         
-                        # 增强页面内容：将标题、标签、分类信息添加到内容开头，提高搜索相关性
-                        enhanced_content = f"标题: {parsed_content['title']}\n"
+                        # Enhanced page content: add title, tags, category information to content beginning to improve search relevance
+                        enhanced_content = f"Title: {parsed_content['title']}\n"
                         if parsed_content['tags']:
-                            enhanced_content += f"标签: {', '.join(str(tag) for tag in parsed_content['tags'])}\n"
+                            enhanced_content += f"Tags: {', '.join(str(tag) for tag in parsed_content['tags'])}\n"
                         if parsed_content['categories']:
-                            enhanced_content += f"分类: {', '.join(str(cat) for cat in parsed_content['categories'])}\n"
+                            enhanced_content += f"Categories: {', '.join(str(cat) for cat in parsed_content['categories'])}\n"
                         enhanced_content += f"\n{chunk}"
                         
                         doc = Document(
@@ -216,10 +216,10 @@ class BlogKnowledgeBase:
                         new_documents.append(doc)
                         
                     except Exception as e:
-                        logger.error(f"创建文档失败 {file_path} chunk {i}: {e}")
+                        logger.error(f"Failed to create document {file_path} chunk {i}: {e}")
                         continue
                 
-                # 更新元数据
+                # Update metadata
                 relative_path = str(file_path.relative_to(self.blog_path))
                 self.metadata[relative_path] = {
                     'hash': self._get_file_hash(file_path),
@@ -231,7 +231,7 @@ class BlogKnowledgeBase:
                 updated_files.append(relative_path)
         
         if new_documents:
-            # 创建或更新向量数据库
+            # Create or update vector database
             if self.vectorstore is None:
                 self.vectorstore = Chroma.from_documents(
                     documents=new_documents,
@@ -239,48 +239,48 @@ class BlogKnowledgeBase:
                     persist_directory=str(self.vector_db_path)
                 )
             else:
-                # 删除旧文档并添加新文档
+                # Delete old documents and add new documents
                 for file_path in updated_files:
                     try:
-                        # 删除该文件的所有chunks
+                        # Delete all chunks of this file
                         collection = self.vectorstore._collection
                         collection.delete(where={"source": file_path})
-                        logger.info(f"删除旧文档: {file_path}")
+                        logger.info(f"Deleted old document: {file_path}")
                     except Exception as e:
-                        logger.warning(f"删除旧文档失败 {file_path}: {e}")
+                        logger.warning(f"Failed to delete old document {file_path}: {e}")
                 
-                # 添加新文档
+                # Add new documents
                 self.vectorstore.add_documents(new_documents)
             
-            # 保存元数据
+            # Save metadata
             self._save_metadata()
             
-            logger.info(f"知识库更新完成，处理了 {len(updated_files)} 个文件，创建了 {len(new_documents)} 个文档块")
+            logger.info(f"Knowledge base update completed, processed {len(updated_files)} files, created {len(new_documents)} document chunks")
         
         return {
             "success": True,
-            "message": f"知识库更新完成",
+            "message": f"Knowledge base update completed",
             "updated_files": updated_files,
             "new_documents_count": len(new_documents),
             "total_files_processed": len(markdown_files)
         }
     
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """搜索知识库"""
+        """Search knowledge base"""
         if self.vectorstore is None:
             return []
         
         try:
-            # 使用更大的k值进行初步搜索
+            # Use larger k value for initial search
             search_k = CONFIG.get("search_k", 10)
             initial_k = max(k * 2, search_k)
             
-            # 执行相似性搜索
+            # Perform similarity search
             docs = self.vectorstore.similarity_search_with_score(query, k=initial_k)
             
             results = []
             for doc, score in docs:
-                # 计算综合评分
+                # Calculate comprehensive score
                 final_score = self._calculate_relevance_score(query, doc, score)
                 
                 results.append({
@@ -290,26 +290,26 @@ class BlogKnowledgeBase:
                     'relevance_score': final_score
                 })
             
-            # 按相关性得分重新排序
+            # Re-sort by relevance score
             results.sort(key=lambda x: x['relevance_score'], reverse=True)
             
-            # 返回前k个结果
+            # Return top k results
             return results[:k]
         except Exception as e:
-            logger.error(f"搜索失败: {e}")
+            logger.error(f"Search failed: {e}")
             return []
     
     def _calculate_relevance_score(self, query: str, doc, vector_score: float) -> float:
-        """计算文档相关性得分"""
+        """Calculate document relevance score"""
         try:
             content = doc.page_content.lower()
             query_lower = query.lower()
             metadata = doc.metadata
             
-            # 基础向量相似性得分（距离越小越好，转换为得分）
+            # Base vector similarity score (smaller distance is better, convert to score)
             base_score = 1.0 / (1.0 + vector_score)
             
-            # 关键词匹配得分
+            # Keyword matching score
             keyword_score = 0.0
             query_words = query_lower.split()
             for word in query_words:
@@ -317,17 +317,17 @@ class BlogKnowledgeBase:
                     keyword_score += 1.0
             keyword_score = keyword_score / len(query_words) if query_words else 0.0
             
-            # 标题匹配得分
+            # Title matching score
             title_score = 0.0
             title = metadata.get('title', '').lower()
             if title and query_lower in title:
-                title_score = 2.0  # 标题匹配给更高权重
+                title_score = 2.0  # Give higher weight to title matching
             elif title:
                 for word in query_words:
                     if word in title:
                         title_score += 0.5
             
-            # 标签匹配得分
+            # Tag matching score
             tags_score = 0.0
             tags = metadata.get('tags', '').lower()
             if tags and query_lower in tags:
@@ -337,7 +337,7 @@ class BlogKnowledgeBase:
                     if word in tags:
                         tags_score += 0.3
             
-            # 分类匹配得分
+            # Category matching score
             category_score = 0.0
             categories = metadata.get('categories', '').lower()
             if categories and query_lower in categories:
@@ -347,28 +347,28 @@ class BlogKnowledgeBase:
                     if word in categories:
                         category_score += 0.2
             
-            # 综合得分
+            # Comprehensive score
             final_score = (
-                base_score * 0.4 +           # 向量相似性 40%
-                keyword_score * 0.3 +        # 关键词匹配 30%
-                title_score * 0.15 +         # 标题匹配 15%
-                tags_score * 0.1 +           # 标签匹配 10%
-                category_score * 0.05        # 分类匹配 5%
+                base_score * 0.4 +           # Vector similarity 40%
+                keyword_score * 0.3 +        # Keyword matching 30%
+                title_score * 0.15 +         # Title matching 15%
+                tags_score * 0.1 +           # Tag matching 10%
+                category_score * 0.05        # Category matching 5%
             )
             
             return final_score
             
         except Exception as e:
-            logger.error(f"计算相关性得分失败: {e}")
-            return 1.0 / (1.0 + vector_score)  # fallback到基础得分
+            logger.error(f"Failed to calculate relevance score: {e}")
+            return 1.0 / (1.0 + vector_score)  # fallback to base score
     
     def get_stats(self) -> Dict[str, Any]:
-        """获取知识库统计信息"""
+        """Get knowledge base statistics"""
         if self.vectorstore is None:
             return {"total_documents": 0, "total_files": 0}
         
         try:
-            # 获取集合信息
+            # Get collection information
             collection = self.vectorstore._collection
             total_docs = collection.count()
             
@@ -383,15 +383,15 @@ class BlogKnowledgeBase:
                 )
             }
         except Exception as e:
-            logger.error(f"获取统计信息失败: {e}")
+            logger.error(f"Failed to get statistics: {e}")
             return {"error": str(e)}
 
 
-# 全局知识库实例
+# Global knowledge base instance
 _knowledge_base = None
 
 def get_knowledge_base() -> BlogKnowledgeBase:
-    """获取知识库实例"""
+    """Get knowledge base instance"""
     global _knowledge_base
     if _knowledge_base is None:
         blog_path = CONFIG.get("blog_path", "/home/zengls/repo/zeroDtree.github.io/content")
@@ -402,41 +402,41 @@ def get_knowledge_base() -> BlogKnowledgeBase:
 
 @tool
 def update_blog_knowledge_base() -> str:
-    """更新博客知识库，将博客内容转换为向量数据库供AI检索使用"""
+    """Update blog knowledge base, convert blog content to vector database for AI retrieval"""
     try:
         kb = get_knowledge_base()
         result = kb.update_knowledge_base()
         
         if result["success"]:
-            return f"✅ 知识库更新成功！\n" \
-                   f"📁 处理文件数: {result['total_files_processed']}\n" \
-                   f"🔄 更新文件数: {len(result['updated_files'])}\n" \
-                   f"📄 新增文档块: {result['new_documents_count']}\n" \
-                   f"📝 更新文件: {', '.join(result['updated_files'][:5])}" + \
-                   (f" 等{len(result['updated_files'])}个文件" if len(result['updated_files']) > 5 else "")
+            return f"✅ Knowledge base update successful!\n" \
+                   f"📁 Files processed: {result['total_files_processed']}\n" \
+                   f"🔄 Files updated: {len(result['updated_files'])}\n" \
+                   f"📄 New document chunks: {result['new_documents_count']}\n" \
+                   f"📝 Updated files: {', '.join(result['updated_files'][:5])}" + \
+                   (f" and {len(result['updated_files'])} more files" if len(result['updated_files']) > 5 else "")
         else:
-            return f"❌ 知识库更新失败: {result['message']}"
+            return f"❌ Knowledge base update failed: {result['message']}"
     except Exception as e:
-        logger.error(f"更新知识库时出错: {e}")
-        return f"❌ 更新知识库时出错: {str(e)}"
+        logger.error(f"Error updating knowledge base: {e}")
+        return f"❌ Error updating knowledge base: {str(e)}"
 
 
 @tool
 def search_blog_knowledge_base(query: str, limit: int = 3) -> str:
-    """在博客知识库中搜索相关内容
+    """Search for relevant content in blog knowledge base
     
     Args:
-        query: 搜索查询
-        limit: 返回结果数量限制，默认5个
+        query: Search query
+        limit: Limit on number of results returned, default 5
     """
     try:
         kb = get_knowledge_base()
         results = kb.search(query, k=limit)
         
         if not results:
-            return f"🔍 未找到与 '{query}' 相关的内容"
+            return f"🔍 No content related to '{query}' found"
         
-        response = f"🔍 找到 {len(results)} 个相关结果:\n\n"
+        response = f"🔍 Found {len(results)} relevant results:\n\n"
         
         for i, result in enumerate(results, 1):
             metadata = result['metadata']
@@ -445,47 +445,47 @@ def search_blog_knowledge_base(query: str, limit: int = 3) -> str:
             score = result['score']
             relevance_score = result.get('relevance_score', score)
             
-            response += f"**{i}. {metadata.get('title', '无标题')}**\n"
-            response += f"📁 文件: {metadata.get('source', '未知')}\n"
-            response += f"📅 日期: {metadata.get('date', '未知')}\n"
+            response += f"**{i}. {metadata.get('title', 'No title')}**\n"
+            response += f"📁 File: {metadata.get('source', 'Unknown')}\n"
+            response += f"📅 Date: {metadata.get('date', 'Unknown')}\n"
             
-            # 处理标签显示
+            # Handle tag display
             tags = metadata.get('tags', '')
             if tags:
-                response += f"🏷️ 标签: {tags}\n"
+                response += f"🏷️ Tags: {tags}\n"
             
-            # 处理分类显示
+            # Handle category display
             categories = metadata.get('categories', '')
             if categories:
-                response += f"📂 分类: {categories}\n"
+                response += f"📂 Categories: {categories}\n"
             
-            response += f"📊 向量相似度: {score:.3f}\n"
-            response += f"🎯 综合相关性: {relevance_score:.3f}\n"
-            response += f"📄 内容:\n{content}\n\n"
+            response += f"📊 Vector similarity: {score:.3f}\n"
+            response += f"🎯 Comprehensive relevance: {relevance_score:.3f}\n"
+            response += f"📄 Content:\n{content}\n\n"
             response += "---\n\n"
         
         return response
     except Exception as e:
-        logger.error(f"搜索知识库时出错: {e}")
-        return f"❌ 搜索时出错: {str(e)}"
+        logger.error(f"Error searching knowledge base: {e}")
+        return f"❌ Error during search: {str(e)}"
 
 
 @tool
 def get_blog_knowledge_base_stats() -> str:
-    """获取博客知识库的统计信息"""
+    """Get blog knowledge base statistics"""
     try:
         kb = get_knowledge_base()
         stats = kb.get_stats()
         
         if "error" in stats:
-            return f"❌ 获取统计信息失败: {stats['error']}"
+            return f"❌ Failed to get statistics: {stats['error']}"
         
-        return f"📊 博客知识库统计信息:\n" \
-               f"📄 总文档数: {stats['total_documents']}\n" \
-               f"📁 总文件数: {stats['total_files']}\n" \
-               f"🗂️ 向量数据库路径: {stats['vector_db_path']}\n" \
-               f"📂 博客路径: {stats['blog_path']}\n" \
-               f"🕒 最后更新: {stats['last_updated']}"
+        return f"📊 Blog knowledge base statistics:\n" \
+               f"📄 Total documents: {stats['total_documents']}\n" \
+               f"📁 Total files: {stats['total_files']}\n" \
+               f"🗂️ Vector database path: {stats['vector_db_path']}\n" \
+               f"📂 Blog path: {stats['blog_path']}\n" \
+               f"🕒 Last updated: {stats['last_updated']}"
     except Exception as e:
-        logger.error(f"获取统计信息时出错: {e}")
-        return f"❌ 获取统计信息时出错: {str(e)}"
+        logger.error(f"Error getting statistics: {e}")
+        return f"❌ Error getting statistics: {str(e)}"

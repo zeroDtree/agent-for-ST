@@ -6,21 +6,47 @@ import os
 
 @tool
 def run_shell_command_popen_tool(command: str) -> str:
-    """执行shell命令。输入一个字符串命令，返回命令的输出。"""
+    """Execute shell command with directory restrictions and path validation. Input a string command and return the command output."""
     try:
-        # 记录命令执行
+        # Log command execution
         log_command_execution(command, "system", "executing")
         
-        # 获取工作目录
-        working_dir = CONFIG.get("working_directory", None)
-        if working_dir and os.path.exists(working_dir):
-            # 如果配置了工作目录且存在，则使用配置的目录
-            cwd = working_dir
+        # Check directory restrictions if enabled
+        if CONFIG.get("restricted_mode", False):
+            try:
+                from utils.path_validator import validate_command_paths, get_safe_working_directory
+                
+                # Validate command paths
+                is_allowed, reason, detected_paths = validate_command_paths(command)
+                if not is_allowed:
+                    error_msg = f"🚫 Command blocked by directory restriction: {reason}"
+                    log_command_execution(command, "system", "blocked", error_msg)
+                    return error_msg
+                
+                # Use safe working directory
+                cwd = get_safe_working_directory()
+                if detected_paths:
+                    log_command_execution(command, "system", "path_check", f"Validated paths: {', '.join(detected_paths)}")
+                
+            except ImportError as e:
+                error_msg = f"⚠️ Path validation unavailable: {str(e)}"
+                log_command_execution(command, "system", "validation_error", error_msg)
+                return error_msg
         else:
-            # 否则使用当前目录
-            cwd = None
+            # Get working directory (normal mode)
+            working_dir = CONFIG.get("working_directory", None)
+            if working_dir and os.path.exists(working_dir):
+                # If working directory is configured and exists, use the configured directory
+                cwd = working_dir
+            else:
+                # Otherwise use current directory
+                cwd = None
         
-        # 统一通过shell执行命令
+        # Log the working directory being used
+        if cwd:
+            log_command_execution(command, "system", "working_dir", f"Using working directory: {cwd}")
+        
+        # Execute command uniformly through shell
         result = subprocess.run(
             command,
             shell=True,
@@ -39,17 +65,17 @@ def run_shell_command_popen_tool(command: str) -> str:
         else:
             status = "success"
         
-        # 记录执行结果
+        # Log execution result
         log_command_execution(command, "system", status, output)
         
         return output
         
     except subprocess.TimeoutExpired:
-        error_msg = f"命令超时: {command}"
+        error_msg = f"Command timeout: {command}"
         log_command_execution(command, "system", "timeout", error_msg)
         return error_msg
         
     except Exception as e:
-        error_msg = f"执行错误: {str(e)}"
+        error_msg = f"Execution error: {str(e)}"
         log_command_execution(command, "system", "error", error_msg)
         return error_msg

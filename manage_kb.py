@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-博客知识库管理脚本
-提供命令行接口来管理博客知识库
+Blog knowledge base management script
+Provides command line interface to manage blog knowledge base
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-# 添加项目根目录到Python路径
+# Add project root directory to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from tools.knowledge_base import get_knowledge_base
@@ -16,38 +16,38 @@ from config.config import CONFIG
 
 
 def update_knowledge_base():
-    """更新知识库"""
-    print("🔄 开始更新博客知识库...")
+    """Update knowledge base"""
+    print("🔄 Starting blog knowledge base update...")
     kb = get_knowledge_base()
     result = kb.update_knowledge_base()
     
     if result["success"]:
-        print("✅ 知识库更新成功！")
-        print(f"📁 处理文件数: {result['total_files_processed']}")
-        print(f"🔄 更新文件数: {len(result['updated_files'])}")
-        print(f"📄 新增文档块: {result['new_documents_count']}")
+        print("✅ Knowledge base update successful!")
+        print(f"📁 Files processed: {result['total_files_processed']}")
+        print(f"🔄 Files updated: {len(result['updated_files'])}")
+        print(f"📄 New document chunks: {result['new_documents_count']}")
         if result['updated_files']:
-            print("📝 更新的文件:")
+            print("📝 Updated files:")
             for file in result['updated_files']:
                 print(f"  - {file}")
     else:
-        print(f"❌ 知识库更新失败: {result['message']}")
+        print(f"❌ Knowledge base update failed: {result['message']}")
         return 1
     
     return 0
 
 
 def search_knowledge_base(query: str, limit: int = 5):
-    """搜索知识库"""
-    print(f"🔍 搜索: {query}")
+    """Search knowledge base"""
+    print(f"🔍 Search: {query}")
     kb = get_knowledge_base()
     results = kb.search(query, k=limit)
     
     if not results:
-        print("❌ 未找到相关内容")
+        print("❌ No relevant content found")
         return 1
     
-    print(f"✅ 找到 {len(results)} 个相关结果:\n")
+    print(f"✅ Found {len(results)} relevant results:\n")
     
     for i, result in enumerate(results, 1):
         metadata = result['metadata']
@@ -56,62 +56,62 @@ def search_knowledge_base(query: str, limit: int = 5):
         score = result['score']
         relevance_score = result.get('relevance_score', score)
         
-        print(f"**{i}. {metadata.get('title', '无标题')}**")
-        print(f"📁 文件: {metadata.get('source', '未知')}")
-        print(f"📅 日期: {metadata.get('date', '未知')}")
+        print(f"**{i}. {metadata.get('title', 'No title')}**")
+        print(f"📁 File: {metadata.get('source', 'Unknown')}")
+        print(f"📅 Date: {metadata.get('date', 'Unknown')}")
         
-        # 处理标签显示
+        # Handle tag display
         tags = metadata.get('tags', '')
         if tags:
-            print(f"🏷️ 标签: {tags}")
+            print(f"🏷️ Tags: {tags}")
         
-        # 处理分类显示
+        # Handle category display
         categories = metadata.get('categories', '')
         if categories:
-            print(f"📂 分类: {categories}")
+            print(f"📂 Categories: {categories}")
         
-        print(f"📊 向量相似度: {score:.3f}")
-        print(f"🎯 综合相关性: {relevance_score:.3f}")
-        # print(f"📄 内容预览:\n{preview_content}")
-        print(f"📄 内容:\n{content}")
+        print(f"📊 Vector similarity: {score:.3f}")
+        print(f"🎯 Comprehensive relevance: {relevance_score:.3f}")
+        # print(f"📄 Content preview:\n{preview_content}")
+        print(f"📄 Content:\n{content}")
         print("-" * 50)
     
     return 0
 
 
 def show_stats():
-    """显示知识库统计信息"""
-    print("📊 博客知识库统计信息:")
+    """Show knowledge base statistics"""
+    print("📊 Blog knowledge base statistics:")
     kb = get_knowledge_base()
     stats = kb.get_stats()
     
     if "error" in stats:
-        print(f"❌ 获取统计信息失败: {stats['error']}")
+        print(f"❌ Failed to get statistics: {stats['error']}")
         return 1
     
-    print(f"📄 总文档数: {stats['total_documents']}")
-    print(f"📁 总文件数: {stats['total_files']}")
-    print(f"🗂️ 向量数据库路径: {stats['vector_db_path']}")
-    print(f"📂 博客路径: {stats['blog_path']}")
-    print(f"🕒 最后更新: {stats['last_updated']}")
+    print(f"📄 Total documents: {stats['total_documents']}")
+    print(f"📁 Total files: {stats['total_files']}")
+    print(f"🗂️ Vector database path: {stats['vector_db_path']}")
+    print(f"📂 Blog path: {stats['blog_path']}")
+    print(f"🕒 Last updated: {stats['last_updated']}")
     
     return 0
 
 
 def main():
-    parser = argparse.ArgumentParser(description="博客知识库管理工具")
-    subparsers = parser.add_subparsers(dest='command', help='可用命令')
+    parser = argparse.ArgumentParser(description="Blog knowledge base management tool")
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
-    # 更新命令
-    update_parser = subparsers.add_parser('update', help='更新知识库')
+    # Update command
+    update_parser = subparsers.add_parser('update', help='Update knowledge base')
     
-    # 搜索命令
-    search_parser = subparsers.add_parser('search', help='搜索知识库')
-    search_parser.add_argument('query', help='搜索查询')
-    search_parser.add_argument('-l', '--limit', type=int, default=5, help='结果数量限制')
+    # Search command
+    search_parser = subparsers.add_parser('search', help='Search knowledge base')
+    search_parser.add_argument('query', help='Search query')
+    search_parser.add_argument('-l', '--limit', type=int, default=5, help='Result count limit')
     
-    # 统计命令
-    stats_parser = subparsers.add_parser('stats', help='显示统计信息')
+    # Statistics command
+    stats_parser = subparsers.add_parser('stats', help='Show statistics')
     
     args = parser.parse_args()
     
@@ -127,10 +127,10 @@ def main():
         elif args.command == 'stats':
             return show_stats()
     except KeyboardInterrupt:
-        print("\n👋 操作已取消")
+        print("\n👋 Operation cancelled")
         return 1
     except Exception as e:
-        print(f"❌ 操作失败: {e}")
+        print(f"❌ Operation failed: {e}")
         return 1
 
 

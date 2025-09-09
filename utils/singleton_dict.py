@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-单例字典管理器 - 提供可监控的全局字典存储
+Singleton Dictionary Manager - Provides monitorable global dictionary storage
 """
 
 import threading
@@ -11,7 +11,7 @@ from utils.logger import logger
 
 class SingletonDictManager:
     """
-    单例模式的字典管理器，支持修改监控和日志记录
+    Singleton pattern dictionary manager with modification monitoring and logging support
     """
     _instance = None
     _lock = threading.Lock()
@@ -32,54 +32,54 @@ class SingletonDictManager:
         self._data: Dict[str, Dict] = {}
         self._observers: Dict[str, List[Callable]] = {}
         self._modification_history: List[Dict] = []
-        self._dict_lock = threading.RLock()  # 支持递归锁定
+        self._dict_lock = threading.RLock()  # Support recursive locking
         
-        logger.info("SingletonDictManager 初始化完成")
+        logger.info("SingletonDictManager initialization completed")
     
     def get_dict(self, name: str) -> 'MonitoredDict':
         """
-        获取或创建一个被监控的字典
+        Get or create a monitored dictionary
         
         Args:
-            name: 字典的名称
+            name: Dictionary name
             
         Returns:
-            MonitoredDict: 被监控的字典对象
+            MonitoredDict: Monitored dictionary object
         """
         with self._dict_lock:
             if name not in self._data:
                 self._data[name] = {}
                 self._observers[name] = []
-                logger.info(f"创建新的监控字典: {name}")
+                logger.info(f"Creating new monitored dictionary: {name}")
             
             return MonitoredDict(self, name)
     
     def add_observer(self, dict_name: str, callback: Callable[[str, str, Any, Any], None]):
         """
-        为指定字典添加修改观察者
+        Add modification observer for specified dictionary
         
         Args:
-            dict_name: 字典名称
-            callback: 回调函数，签名为 (dict_name, operation, key, value)
+            dict_name: Dictionary name
+            callback: Callback function with signature (dict_name, operation, key, value)
         """
         with self._dict_lock:
             if dict_name not in self._observers:
                 self._observers[dict_name] = []
             self._observers[dict_name].append(callback)
-            logger.info(f"为字典 {dict_name} 添加观察者")
+            logger.info(f"Adding observer for dictionary {dict_name}")
     
     def remove_observer(self, dict_name: str, callback: Callable):
         """
-        移除观察者
+        Remove observer
         """
         with self._dict_lock:
             if dict_name in self._observers and callback in self._observers[dict_name]:
                 self._observers[dict_name].remove(callback)
-                logger.info(f"从字典 {dict_name} 移除观察者")
+                logger.info(f"Removing observer from dictionary {dict_name}")
     
     def _notify_observers(self, dict_name: str, operation: str, key: Any = None, value: Any = None, old_value: Any = None):
         """
-        通知所有观察者字典发生了修改
+        Notify all observers that dictionary has been modified
         """
         timestamp = time.time()
         modification_info = {
@@ -91,41 +91,41 @@ class SingletonDictManager:
             'old_value': old_value
         }
         
-        # 记录修改历史
+        # Record modification history
         self._modification_history.append(modification_info)
         
-        # 限制历史记录数量
+        # Limit history record count
         if len(self._modification_history) > 1000:
             self._modification_history = self._modification_history[-500:]
         
-        # 记录日志
+        # Log records
         if operation in ['set', 'update']:
-            logger.info(f"字典修改 [{dict_name}]: {operation} key='{key}' value='{value}' (old_value='{old_value}')")
+            logger.info(f"Dictionary modification [{dict_name}]: {operation} key='{key}' value='{value}' (old_value='{old_value}')")
         elif operation == 'delete':
-            logger.info(f"字典修改 [{dict_name}]: {operation} key='{key}' (old_value='{old_value}')")
+            logger.info(f"Dictionary modification [{dict_name}]: {operation} key='{key}' (old_value='{old_value}')")
         elif operation == 'clear':
-            logger.info(f"字典修改 [{dict_name}]: {operation} (cleared all items)")
+            logger.info(f"Dictionary modification [{dict_name}]: {operation} (cleared all items)")
         else:
-            logger.info(f"字典修改 [{dict_name}]: {operation}")
+            logger.info(f"Dictionary modification [{dict_name}]: {operation}")
         
-        # 通知观察者
+        # Notify observers
         if dict_name in self._observers:
-            for observer in self._observers[dict_name][:]:  # 复制列表避免修改冲突
+            for observer in self._observers[dict_name][:]:  # Copy list to avoid modification conflicts
                 try:
                     observer(dict_name, operation, key, value, old_value)
                 except Exception as e:
-                    logger.error(f"观察者回调失败: {e}")
+                    logger.error(f"Observer callback failed: {e}")
     
     def get_modification_history(self, dict_name: Optional[str] = None, limit: int = 100) -> List[Dict]:
         """
-        获取修改历史
+        Get modification history
         
         Args:
-            dict_name: 字典名称，None表示获取所有字典的历史
-            limit: 返回记录数量限制
+            dict_name: Dictionary name, None means get history for all dictionaries
+            limit: Limit on number of records returned
             
         Returns:
-            修改历史列表
+            Modification history list
         """
         with self._dict_lock:
             history = self._modification_history
@@ -135,26 +135,26 @@ class SingletonDictManager:
     
     def clear_history(self, dict_name: Optional[str] = None):
         """
-        清除修改历史
+        Clear modification history
         """
         with self._dict_lock:
             if dict_name:
                 self._modification_history = [h for h in self._modification_history if h['dict_name'] != dict_name]
-                logger.info(f"清除字典 {dict_name} 的修改历史")
+                logger.info(f"Clearing modification history for dictionary {dict_name}")
             else:
                 self._modification_history.clear()
-                logger.info("清除所有字典的修改历史")
+                logger.info("Clearing modification history for all dictionaries")
     
     def get_all_dict_names(self) -> List[str]:
         """
-        获取所有字典名称
+        Get all dictionary names
         """
         with self._dict_lock:
             return list(self._data.keys())
     
     def get_dict_info(self, dict_name: str) -> Dict:
         """
-        获取字典信息
+        Get dictionary information
         """
         with self._dict_lock:
             if dict_name not in self._data:
@@ -170,7 +170,7 @@ class SingletonDictManager:
 
 class MonitoredDict:
     """
-    被监控的字典类，所有操作都会被记录和通知观察者
+    Monitored dictionary class, all operations are logged and observers are notified
     """
     
     def __init__(self, manager: SingletonDictManager, name: str):
@@ -207,7 +207,7 @@ class MonitoredDict:
     
     def __iter__(self):
         with self._manager._dict_lock:
-            # 返回键的副本以避免并发修改问题
+            # Return copy of keys to avoid concurrent modification issues
             return iter(list(self._data.keys()))
     
     def keys(self):
@@ -230,7 +230,7 @@ class MonitoredDict:
         with self._manager._dict_lock:
             old_value = self._data.get(key)
             result = self._data.pop(key, *args)
-            if key in self._data or len(args) == 0:  # 如果键存在或没有默认值
+            if key in self._data or len(args) == 0:  # If key exists or no default value
                 self._manager._notify_observers(self._name, 'delete', key, None, old_value)
             return result
     
@@ -247,7 +247,7 @@ class MonitoredDict:
     
     def update(self, *args, **kwargs):
         with self._manager._dict_lock:
-            # 记录更新前的值
+            # Record values before update
             if args:
                 if len(args) > 1:
                     raise TypeError(f"update expected at most 1 arguments, got {len(args)}")
@@ -287,44 +287,44 @@ class MonitoredDict:
         return self.__repr__()
 
 
-# 创建全局单例实例
+# Create global singleton instance
 dict_manager = SingletonDictManager()
 
 
-# 便捷函数
+# Convenience functions
 def get_monitored_dict(name: str) -> MonitoredDict:
     """
-    获取被监控的字典实例
+    Get monitored dictionary instance
     
     Args:
-        name: 字典名称
+        name: Dictionary name
         
     Returns:
-        MonitoredDict: 被监控的字典
+        MonitoredDict: Monitored dictionary
     """
     return dict_manager.get_dict(name)
 
 
 def add_dict_observer(dict_name: str, callback: Callable[[str, str, Any, Any], None]):
     """
-    为字典添加观察者
+    Add observer for dictionary
     
     Args:
-        dict_name: 字典名称
-        callback: 回调函数
+        dict_name: Dictionary name
+        callback: Callback function
     """
     dict_manager.add_observer(dict_name, callback)
 
 
 def get_dict_history(dict_name: str = None, limit: int = 100) -> List[Dict]:
     """
-    获取字典修改历史
+    Get dictionary modification history
     
     Args:
-        dict_name: 字典名称，None表示所有字典
-        limit: 返回记录数量限制
+        dict_name: Dictionary name, None means all dictionaries
+        limit: Limit on number of records returned
         
     Returns:
-        修改历史列表
+        Modification history list
     """
     return dict_manager.get_modification_history(dict_name, limit)

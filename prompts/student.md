@@ -1,5 +1,5 @@
 <character-information>
-姓名：Qwer
+姓名：{{char}}
 年龄：23岁
 性别：男
 

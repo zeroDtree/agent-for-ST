@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, Any
 
-# 主配置
+# Main configuration
 CONFIG: Dict[str, Any] = {
     "thread_id": "1",
     "recursion_limit": 1000,
@@ -9,32 +9,39 @@ CONFIG: Dict[str, Any] = {
     "max_history_messages": 10000,
     "command_timeout": 30,
     "log_level": "INFO",
-    # 工作目录配置
-    "working_directory": None,  # Agent的初始工作目录，None表示使用当前目录
-    # 博客知识库配置
+    # Working directory configuration
+    "working_directory": None,  # Agent's initial working directory, None means use current directory
+    # Directory restriction configuration (for debugging mode)
+    "restricted_mode": False,  # Enable directory restriction mode
+    "allowed_directory": None,  # Restrict AI operations to this directory and its subdirectories
+    "allow_parent_read": False,  # Allow reading files from parent directories (read-only)
+    "enforce_strict_sandbox": True,  # Enforce strict sandboxing (no operations outside allowed directory)
+    # Auto mode configuration
+    "auto_mode": "manual",  # Options: "manual", "blacklist_reject", "universal_reject", "whitelist_accept", "universal_accept"
+    # Blog knowledge base configuration
     "blog_path": "data/blog_content",
     "vector_db_path": "data/vector_db",
-    "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # 轻量的多语言embedding模型
-    "chunk_size": 2000,  # 减小chunk大小，提高语义聚焦度
-    "chunk_overlap": 100,  # 相应减小重叠
-    "search_k": 10,  # 初步搜索更多结果
-    "rerank_top_k": 5,  # 重排序后返回的结果数
+    "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # Lightweight multilingual embedding model
+    "chunk_size": 2000,  # Reduce chunk size to improve semantic focus
+    "chunk_overlap": 100,  # Correspondingly reduce overlap
+    "search_k": 10,  # Initial search for more results
+    "rerank_top_k": 5,  # Number of results returned after reranking
 }
 
-# 白名单配置
-WHITELIST_CONFIG = {"cache_size": 1000, "cache_ttl": 300}  # 5分钟
+# Whitelist configuration
+WHITELIST_CONFIG = {"cache_size": 1000, "cache_ttl": 300}  # 5 minutes
 
-# 监控配置
-MONITOR_CONFIG = {"enable_performance_monitoring": True, "slow_threshold_ms": 10000}  # 10秒
+# Monitoring configuration
+MONITOR_CONFIG = {"enable_performance_monitoring": True, "slow_threshold_ms": 10000}  # 10 seconds
 
-# 工具安全配置
+# Tool security configuration
 TOOL_SECURITY_CONFIG = {
-    # 安全工具列表（无需用户确认）
+    # Safe tools list (no user confirmation required)
     "safe_tools": {"update_blog_knowledge_base", "search_blog_knowledge_base", "get_blog_knowledge_base_stats"},
-    # Shell命令工具列表
+    # Shell command tools list
     "shell_tools": {"run_shell_command_popen_tool"},
-    # 需要确认的工具列表
+    # Tools requiring confirmation list
     "confirm_required_tools": {
-        # 可以在这里添加其他需要确认的工具
+        # You can add other tools requiring confirmation here
     },
 }
