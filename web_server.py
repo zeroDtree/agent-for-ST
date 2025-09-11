@@ -611,6 +611,12 @@ Example usage:
   %(prog)s -r /path/to/debug        # Enable restricted mode for debugging
   %(prog)s -r ~/project --allow-parent-read  # Restricted mode with parent directory access
   %(prog)s --port 8080 --debug -r ~/debug    # Combined: custom port, debug mode, and restriction
+  
+  LLM Configuration examples:
+  %(prog)s --llm-model gpt-4         # Use GPT-4 model
+  %(prog)s --llm-url https://api.openai.com/v1 --llm-api-key-env OPENAI_API_KEY  # Use OpenAI API
+  %(prog)s --llm-model claude-3.5-sonnet --llm-url https://api.anthropic.com/v1  # Use Claude
+  %(prog)s --llm-temperature 0.7 --llm-max-tokens 4096  # Fine-tune LLM parameters
         """,
     )
 
@@ -656,6 +662,17 @@ Example usage:
         default="manual",
         help="Set automatic command handling mode (default: manual)",
     )
+
+    # LLM configuration parameters
+    parser.add_argument("--llm-model", type=str, help="Set LLM model name (e.g., deepseek-chat, gpt-4)")
+    
+    parser.add_argument("--llm-url", type=str, help="Set LLM API base URL (e.g., https://api.deepseek.com/v1)")
+    
+    parser.add_argument("--llm-api-key-env", type=str, help="Set environment variable name for LLM API key (e.g., DEEPSEEK_API_KEY)")
+    
+    parser.add_argument("--llm-max-tokens", type=int, help="Set maximum tokens for LLM response (default: 8192)")
+    
+    parser.add_argument("--llm-temperature", type=float, help="Set LLM temperature (0.0-2.0, default: 1.0)")
 
     # Other options
     parser.add_argument("--version", action="version", version="AI Agent Web Server v1.0.0")
@@ -745,6 +762,41 @@ if __name__ == "__main__":
             print(f"🤖 Auto mode enabled: {args.auto_mode}")
             logger.info(f"Web server auto mode enabled: {args.auto_mode}")
 
+    # Set LLM configuration
+    llm_config_changed = False
+    if args.llm_model:
+        CONFIG["llm_model_name"] = args.llm_model
+        llm_config_changed = True
+        print(f"🤖 LLM model set: {args.llm_model}")
+        logger.info(f"LLM model set: {args.llm_model}")
+
+    if args.llm_url:
+        CONFIG["llm_base_url"] = args.llm_url
+        llm_config_changed = True
+        print(f"🌐 LLM API URL set: {args.llm_url}")
+        logger.info(f"LLM API URL set: {args.llm_url}")
+
+    if args.llm_api_key_env:
+        CONFIG["llm_api_key_env"] = args.llm_api_key_env
+        llm_config_changed = True
+        print(f"🔑 LLM API key environment variable set: {args.llm_api_key_env}")
+        logger.info(f"LLM API key environment variable set: {args.llm_api_key_env}")
+
+    if args.llm_max_tokens:
+        CONFIG["llm_max_tokens"] = args.llm_max_tokens
+        llm_config_changed = True
+        print(f"📏 LLM max tokens set: {args.llm_max_tokens}")
+        logger.info(f"LLM max tokens set: {args.llm_max_tokens}")
+
+    if args.llm_temperature is not None:
+        CONFIG["llm_temperature"] = args.llm_temperature
+        llm_config_changed = True
+        print(f"🌡️ LLM temperature set: {args.llm_temperature}")
+        logger.info(f"LLM temperature set: {args.llm_temperature}")
+
+    if llm_config_changed:
+        print("⚡ LLM configuration updated, will use new settings for agent initialization")
+
     # Set log level
     logging.getLogger().setLevel(getattr(logging, args.log_level))
     logger.setLevel(getattr(logging, args.log_level))
@@ -759,6 +811,9 @@ if __name__ == "__main__":
     if args.working_dir:
         print(f"🗂️ Working directory: {CONFIG['working_directory']}")
     print(f"📝 Log level: {args.log_level}")
+    print(f"🤖 LLM model: {CONFIG['llm_model_name']}")
+    print(f"🌐 LLM URL: {CONFIG['llm_base_url']}")
+    print(f"🔑 LLM API key env: {CONFIG['llm_api_key_env']}")
     print()
 
     # Initialize agent system

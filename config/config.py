@@ -18,6 +18,15 @@ CONFIG: Dict[str, Any] = {
     "enforce_strict_sandbox": True,  # Enforce strict sandboxing (no operations outside allowed directory)
     # Auto mode configuration
     "auto_mode": "manual",  # Options: "manual", "blacklist_reject", "universal_reject", "whitelist_accept", "universal_accept"
+    # LLM configuration
+    "llm_model_name": "deepseek-chat",  # Default model name
+    "llm_base_url": "https://api.deepseek.com/v1",  # Default API base URL
+    "llm_api_key_env": "DEEPSEEK_API_KEY",  # Environment variable name for API key
+    "llm_max_tokens": 8192,  # Maximum tokens for LLM response
+    "llm_streaming": True,  # Enable streaming responses
+    "llm_temperature": 1.0,  # Temperature for response generation
+    "llm_presence_penalty": 0.0,  # Presence penalty
+    "llm_frequency_penalty": 0.0,  # Frequency penalty
     # Blog knowledge base configuration
     "blog_path": "data/blog_content",
     "vector_db_path": "data/vector_db",

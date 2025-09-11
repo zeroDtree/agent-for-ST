@@ -1,30 +1,28 @@
 # Agent-For-SillyTavern
 
 - [Agent-For-SillyTavern](#agent-for-sillytavern)
-  - [1. 功能介绍](#1-功能介绍)
-  - [2. 使用方法](#2-使用方法)
-    - [2.1. 基本使用](#21-基本使用)
-      - [2.1.1. 安装依赖](#211-安装依赖)
-      - [2.1.2. 语言模型（`llms/llm.py`里的`get_llm_model`函数）是需要自己重新配置的。](#212-语言模型llmsllmpy里的get_llm_model函数是需要自己重新配置的)
-      - [2.1.3. 运行`web_server.py`](#213-运行web_serverpy)
-      - [2.1.4. SillyTavern 配置](#214-sillytavern-配置)
-    - [2.2. 博客知识库](#22-博客知识库)
-      - [2.2.1. 博客知识库配置](#221-博客知识库配置)
-      - [2.2.2. 创建/更新博客知识库](#222-创建更新博客知识库)
-  - [文档](#文档)
-  - [3. 效果图](#3-效果图)
+  - [1. Function Introduction](#1-function-introduction)
+  - [2. Usage](#2-usage)
+    - [2.1. Basic Usage](#21-basic-usage)
+      - [2.1.1. Dependency Installation](#211-dependency-installation)
+      - [2.1.2. Run `web_server.py`](#212-run-web_serverpy)
+      - [2.1.3. SillyTavern Configuration](#213-sillytavern-configuration)
+    - [2.2. Blog Knowledge Base](#22-blog-knowledge-base)
+      - [2.2.1. Blog Knowledge Base Configuration](#221-blog-knowledge-base-configuration)
+      - [2.2.2. Creating/Updating a Blog Knowledge Base](#222-creatingupdating-a-blog-knowledge-base)
+  - [3. Documentation](#3-documentation)
 
-## 1. 功能介绍
+## 1. Function Introduction
 
-- 在回答用户问题时可以参考博客内容
-- 可以执行 shell 命令，并查看 shell 命令的输出，非安全命令会向用户发送确认请求。
-- 暴露出 openai 兼容的 api 接口，以供 SillyTavern 调用。
+- Agent can refer to the blog content when answering user questions.
+- Agent can execute shell commands and view their output. Non-secure commands will prompt the user for confirmation.
+- OpenAI-compatible API for SillyTavern to call.
 
-## 2. 使用方法
+## 2. Usage
 
-### 2.1. 基本使用
+### 2.1. Basic Usage
 
-#### 2.1.1. 安装依赖
+#### 2.1.1. Dependency Installation
 
 ```bash
 conda create -n agent4st python=3.10 -y
@@ -34,101 +32,56 @@ cd agent-for-ST
 pip install -r requirements.txt
 ```
 
-#### 2.1.2. 语言模型（`llms/llm.py`里的`get_llm_model`函数）是需要自己重新配置的。
-
-#### 2.1.3. 运行`web_server.py`
+#### 2.1.2. Run `web_server.py`
 
 ```bash
 python web_server.py
 ```
 
-运行成功后会监听默认`http://127.0.0.1:5000`
+After successful execution, the server will listen on the default `http://127.0.0.1:5000` address.
 
-命令行参数：
+Run`python web_server.py --help` to see options.
 
-```bash
-usage: web_server.py [-h] [--host HOST] [--port PORT] [--debug] [--no-debug] [--web-mode] [--no-web-mode] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--working-dir WORKING_DIR]
-                     [--restricted-dir RESTRICTED_DIR] [--allow-parent-read] [--auto-mode {manual,blacklist_reject,universal_reject,whitelist_accept,universal_accept}] [--version]
+#### 2.1.3. SillyTavern Configuration
 
-AI Agent Web Server - Provides OpenAI compatible API interface
+Assuming you have already installed SillyTavern.
 
-options:
-  -h, --help            show this help message and exit
-  --host HOST           Server listening host address (default: 0.0.0.0)
-  --port PORT           Server listening port number (default: 5000)
-  --debug               Enable Flask debug mode (default: off)
-  --no-debug            Force disable debug mode
-  --web-mode            Enable Web mode (default: enabled)
-  --no-web-mode         Disable Web mode
-  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
-                        Set log level (default: INFO)
-  --working-dir WORKING_DIR, -w WORKING_DIR
-                        Set the initial working directory for the Agent
-  --restricted-dir RESTRICTED_DIR, -r RESTRICTED_DIR
-                        Enable restricted mode and confine AI to the specified directory
-  --allow-parent-read   In restricted mode, allow reading files from parent directories
-  --auto-mode {manual,blacklist_reject,universal_reject,whitelist_accept,universal_accept}
-                        Set automatic command handling mode (default: manual)
-  --version             show program's version number and exit
+Configure SillyTavern's API address to `http://0.0.0.0:5000/v1`.
 
-```
+Install [Tavern Helper](https://n0vi028.github.io/JS-Slash-Runner-Doc/)
 
-#### 2.1.4. SillyTavern 配置
+Import the [Character Card](./char-cards/Qwer.json) into SillyTavern. The character card contains the character definition and the tool call confirmation JS script.
 
-假定你已经安装了 SillyTavern。
+You can (should) modify the character definition as needed.
 
-SillyTavern 的 API 地址配置成` http://0.0.0.0:5000/v1`.
+To display LaTeX formulas, you need to install the [SillyTavern LaTeX plugin](https://github.com/SillyTavern/Extension-LaTeX). The [char card](./char-cards/Qwer.json) already contains regular expressions for displaying mathematical formulas.
 
-安装[酒馆助手](https://n0vi028.github.io/JS-Slash-Runner-Doc/)
+### 2.2. Blog Knowledge Base
 
-导入[角色卡](./char-cards/Qwer.json)到 SillyTavern，角色卡里包含`角色定义`以及`工具调用确认`的 js 脚本。
+#### 2.2.1. Blog Knowledge Base Configuration
 
-其中角色定义你可以按照你的需求随意更改。
+The following are the configuration parameters supported by the blog knowledge base, which can be configured in `config/config.py`.
 
-为了显示 latex 公式，需要安装[酒馆 latex 插件](https://github.com/SillyTavern/Extension-LaTeX), [角色卡](./char-cards/Qwer.json)里已经包含了显示数学公式的正则表达式。
+You may need to modify `blog_path`, which is the directory where your blog content is located. For example, you can use a soft link to point to your blog content directory.
 
-### 2.2. 博客知识库
+#### 2.2.2. Creating/Updating a Blog Knowledge Base
 
-#### 2.2.1. 博客知识库配置
-
-下面是博客知识库支持配置的参数，可以在`config/config.py`中配置。
-
-可能要修改的是`blog_path`，即博客内容的目录。例如你可以使用一个软链接来指向你的博客内容目录。
-
-```python
-# 博客知识库配置
-"blog_path": "data/blog_content",
-"vector_db_path": "data/vector_db",
-"embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # 轻量的多语言embedding模型
-"chunk_size": 2000,  # 减小chunk大小，提高语义聚焦度
-"chunk_overlap": 100,  # 相应减小重叠
-"search_k": 10,  # 初步搜索更多结果
-"rerank_top_k": 5,  # 重排序后返回的结果数
-```
-
-#### 2.2.2. 创建/更新博客知识库
-
-因为索引博客使用了语言模型，所以需要安装`sentence-transformers`(这个包会依赖 pytorch,所以建议你先单独安装 pytorch，否则会自动下载较新版本 cuda 的 pytorch)
+Because indexing blogs uses a language model, you need to install `sentence-transformers` (this package depends on PyTorch, so it is recommended that you install PyTorch separately first; otherwise, a newer version of CUDA will be automatically downloaded). pytorch)
 
 ```bash
 pip install -r requirements_kb.txt
 ```
 
-更新数据库（首次更新会自动创建）
+Update the database (automatically created for the first update)
 
 ```bash
 python manage_kb.py update
 ```
 
-目前的代码只扫描博客内容目录下的`*.md`文件，其他格式文件不会被索引。
+The current code only scans `*.md` files in the blog content directory; files in other formats are not indexed.
 
-## 文档
+## 3. Documentation
 
-[命令检查流程](./doc/command-check-flow.md)
-[自动拒绝模式](./doc/auto-reject.md)
-
-## 3. 效果图
-
-<img src="./examples/confirm.png" alt="效果图" width="48%"> <img src="./examples/show-1.png" alt="效果图" width="48%">
-
-<img src="./examples/show-2.png" alt="效果图" width="48%"> <img src="./examples/show-3.png" alt="效果图" width="48%">
+[Command Check Flow](./doc/zh/command-check-flow.md)
+[Auto-Reject Mode](./doc/zh/auto-reject.md)
+[LLM Configuration](./doc/llm-configuration.md)
