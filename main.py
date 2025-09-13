@@ -1,14 +1,18 @@
 # offical package
-from langchain_core.messages import HumanMessage
 import argparse
 import os
 
+from langchain_core.messages import HumanMessage
+
+from config.config import CONFIG
+from graphs.graph import create_graph
+from utils.logger import get_and_create_new_log_dir, get_logger
+from utils.preset import preset_messages
+
+log_dir = get_and_create_new_log_dir(root=CONFIG["log_dir"], prefix="", suffix="", strftime_format="%Y%m%d")
+logger = get_logger(name=__name__, log_dir=log_dir)
 
 # Custom packages
-from utils.preset import preset_messages
-from config.config import CONFIG
-from utils.logger import logger
-from graphs.graph import create_graph
 
 
 def parse_arguments():
@@ -23,7 +27,7 @@ Example usage:
   %(prog)s -w ~/projects            # Use short parameter to set working directory
   %(prog)s -r /path/to/debug        # Enable restricted mode for debugging in specific directory
   %(prog)s -r ~/project --allow-parent-read  # Restricted mode with parent directory read access
-  
+
   LLM Configuration examples:
   %(prog)s --llm-model gpt-4         # Use GPT-4 model
   %(prog)s --llm-url https://api.openai.com/v1 --llm-api-key-env OPENAI_API_KEY  # Use OpenAI API
@@ -32,10 +36,18 @@ Example usage:
         """,
     )
 
-    parser.add_argument("--working-dir", "-w", type=str, help="Set the initial working directory for the Agent")
+    parser.add_argument(
+        "--working-dir",
+        "-w",
+        type=str,
+        help="Set the initial working directory for the Agent",
+    )
 
     parser.add_argument(
-        "--restricted-dir", "-r", type=str, help="Enable restricted mode and confine AI to the specified directory"
+        "--restricted-dir",
+        "-r",
+        type=str,
+        help="Enable restricted mode and confine AI to the specified directory",
     )
 
     parser.add_argument(
@@ -46,21 +58,43 @@ Example usage:
 
     parser.add_argument(
         "--auto-mode",
-        choices=["manual", "blacklist_reject", "universal_reject", "whitelist_accept", "universal_accept"],
+        choices=[
+            "manual",
+            "blacklist_reject",
+            "universal_reject",
+            "whitelist_accept",
+            "universal_accept",
+        ],
         default="manual",
         help="Set automatic command handling mode (default: manual)",
     )
 
     # LLM configuration parameters
     parser.add_argument("--llm-model", type=str, help="Set LLM model name (e.g., deepseek-chat, gpt-4)")
-    
-    parser.add_argument("--llm-url", type=str, help="Set LLM API base URL (e.g., https://api.deepseek.com/v1)")
-    
-    parser.add_argument("--llm-api-key-env", type=str, help="Set environment variable name for LLM API key (e.g., DEEPSEEK_API_KEY)")
-    
-    parser.add_argument("--llm-max-tokens", type=int, help="Set maximum tokens for LLM response (default: 8192)")
-    
-    parser.add_argument("--llm-temperature", type=float, help="Set LLM temperature (0.0-2.0, default: 1.0)")
+
+    parser.add_argument(
+        "--llm-url",
+        type=str,
+        help="Set LLM API base URL (e.g., https://api.deepseek.com/v1)",
+    )
+
+    parser.add_argument(
+        "--llm-api-key-env",
+        type=str,
+        help="Set environment variable name for LLM API key (e.g., DEEPSEEK_API_KEY)",
+    )
+
+    parser.add_argument(
+        "--llm-max-tokens",
+        type=int,
+        help="Set maximum tokens for LLM response (default: 8192)",
+    )
+
+    parser.add_argument(
+        "--llm-temperature",
+        type=float,
+        help="Set LLM temperature (0.0-2.0, default: 1.0)",
+    )
 
     parser.add_argument("--version", action="version", version="AI Agent Console v1.0.0")
 
@@ -135,6 +169,7 @@ def main():
             CONFIG["auto_mode"] = args.auto_mode
             try:
                 from tools.whitelist import get_auto_mode_description
+
                 mode_description = get_auto_mode_description()
                 print(mode_description)
                 logger.info(f"Auto mode enabled: {args.auto_mode}")
@@ -186,7 +221,7 @@ def main():
         logger.info("Starting AI assistant system")
 
         # Initialize graph
-        graph = create_graph()
+        graph = create_graph(need_memory=True)
 
         is_first = True
         messages_history = []

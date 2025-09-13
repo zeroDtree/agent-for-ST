@@ -3,25 +3,29 @@
 Web Server - Provides API interface for frontend to interact with agent
 """
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import logging
+import argparse
+import datetime
 import json
 import os
 import queue
-import argparse
+
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+from config.config import CONFIG
 
 # Import existing agent system
 from graphs.graph import create_graph
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from config.config import CONFIG
-from utils.logger import logger
-from utils.singleton_dict import get_monitored_dict, add_dict_observer, get_dict_history
+from interfaces import web_confirmation_interface
+from utils.logger import get_and_create_new_log_dir, get_logger
+from utils.singleton_dict import add_dict_observer, get_dict_history, get_monitored_dict
 
-# from utils.preset import preset_messages
+log_dir = get_and_create_new_log_dir(root=CONFIG["log_dir"], prefix="", suffix="", strftime_format="%Y%m%d")
+logger = get_logger(name=__name__, log_dir=log_dir)
 
 app = Flask(__name__)
-CORS(app)  # allow cross-origin requests
+CORS(app)
 
 # Global variables to store agent graph and pending commands
 agent_graph = None
@@ -30,13 +34,20 @@ agent_graph = None
 pending_confirmations = get_monitored_dict(
     "pending_confirmations"
 )  # Store pending commands: {session_id: {command: str, callback: callable}}
-sse_clients = get_monitored_dict("sse_clients")  # Store SSE client connections: {session_id: [client_generators, ...]}
+# Store SSE client connections: {session_id: [client_generators, ...]}
+sse_clients = get_monitored_dict("sse_clients")
 
 
 def initialize_agent(web_mode=True):
     """Initialize agent graph"""
     global agent_graph
     try:
+        # Inject web dependencies into the interface before creating graph
+        if web_mode:
+            web_confirmation_interface.set_dependencies(
+                pending_confirmations=pending_confirmations, send_sse_event=send_sse_event
+            )
+
         agent_graph = create_graph(web_mode=web_mode)
 
         # Set up dictionary observers
@@ -82,7 +93,11 @@ def setup_dict_observers():
 def health_check():
     """Health check endpoint"""
     return jsonify(
-        {"status": "ok", "agent_ready": agent_graph is not None, "message": "AI Agent Web service is running normally"}
+        {
+            "status": "ok",
+            "agent_ready": agent_graph is not None,
+            "message": "AI Agent Web service is running normally",
+        }
     )
 
 
@@ -90,19 +105,23 @@ def health_check():
 def get_dict_modification_history():
     """Get dictionary modification history"""
     try:
-        dict_name = request.args.get("dict_name")  # Optional parameter to specify dictionary name
-        limit = int(request.args.get("limit", 50))  # Limit return count, default 50
+        # Optional parameter to specify dictionary name
+        dict_name = request.args.get("dict_name")
+        # Limit return count, default 50
+        limit = int(request.args.get("limit", 50))
 
         history = get_dict_history(dict_name, limit)
-
-        # Format timestamp to readable format
-        import datetime
 
         for record in history:
             record["readable_time"] = datetime.datetime.fromtimestamp(record["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
 
         return jsonify(
-            {"status": "success", "history": history, "total_records": len(history), "dict_name": dict_name or "all"}
+            {
+                "status": "success",
+                "history": history,
+                "total_records": len(history),
+                "dict_name": dict_name or "all",
+            }
         )
 
     except Exception as e:
@@ -123,7 +142,13 @@ def get_dict_status():
             info = dict_manager.get_dict_info(dict_name)
             dict_status[dict_name] = info
 
-        return jsonify({"status": "success", "dictionaries": dict_status, "total_dicts": len(all_dicts)})
+        return jsonify(
+            {
+                "status": "success",
+                "dictionaries": dict_status,
+                "total_dicts": len(all_dicts),
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting dictionary status: {e}")
@@ -155,7 +180,7 @@ def get_restriction_status():
             {
                 "status": "success",
                 "restriction": restriction_info,
-                "message": "🔒 Restricted mode" if restriction_info["restricted_mode"] else "🔓 Normal mode",
+                "message": ("🔒 Restricted mode" if restriction_info["restricted_mode"] else "🔓 Normal mode"),
             }
         )
 
@@ -179,7 +204,16 @@ def get_pending_confirmations():
             }
         )
     else:
-        return jsonify({"status": "success", "pending": False, "session_id": session_id})
+        return jsonify({
+            "status": "success", 
+            "pending": False, 
+            "session_id": session_id,
+            "debug_info": {
+                "active_pending_sessions": list(pending_confirmations.keys()),
+                "active_sse_sessions": list(sse_clients.keys()),
+                "total_sse_clients": sum(len(clients) for clients in sse_clients.values())
+            }
+        })
 
 
 @app.route("/api/confirm-command", methods=["POST"])
@@ -191,7 +225,10 @@ def confirm_command():
         confirmed = data.get("confirmed", False)
 
         if session_id not in pending_confirmations:
-            return jsonify({"status": "error", "message": "No pending command found"}), 404
+            return (
+                jsonify({"status": "error", "message": "No pending command found"}),
+                404,
+            )
 
         # Get callback function
         callback = pending_confirmations[session_id]["callback"]
@@ -271,27 +308,36 @@ def events():
 
 def send_sse_event(session_id: str, event_data: dict):
     """Send events to all SSE clients of specified session"""
+    logger.info(f"Attempting to send SSE event to session '{session_id}': {event_data}")
     print(f"Preparing to send SSE event: {event_data}")
     print(f"SSE clients: {sse_clients}")
     print(f"Session ID: {session_id}")
 
     if session_id in sse_clients:
         dead_clients = []
-        for client_queue in sse_clients[session_id]:
+        client_count = len(sse_clients[session_id])
+        logger.info(f"Found {client_count} SSE clients for session '{session_id}'")
+        
+        for i, client_queue in enumerate(sse_clients[session_id]):
             try:
-                print(f"Sending SSE event: {event_data}")
+                print(f"Sending SSE event to client {i+1}/{client_count}: {event_data}")
                 client_queue.put(event_data, timeout=1)
+                logger.info(f"SSE event sent successfully to client {i+1}")
             except queue.Full:
                 # Client queue full, possibly disconnected
+                logger.warning(f"SSE client {i+1} queue full, marking as dead")
                 dead_clients.append(client_queue)
             except Exception as e:
-                logger.warning(f"Failed to send SSE event: {e}")
+                logger.warning(f"Failed to send SSE event to client {i+1}: {e}")
                 dead_clients.append(client_queue)
 
         # Clean up disconnected clients
         for dead_client in dead_clients:
             if dead_client in sse_clients[session_id]:
                 sse_clients[session_id].remove(dead_client)
+                logger.info(f"Removed dead SSE client from session '{session_id}'")
+    else:
+        logger.warning(f"No SSE clients found for session '{session_id}'. Available sessions: {list(sse_clients.keys())}")
 
 
 def process_message(messages: list, session_id: str = "default") -> str:
@@ -371,14 +417,34 @@ def openai_chat_completions():
         messages = data.get("messages", [])
         model = data.get("model", "my-agent")
         stream = data.get("stream", False)
-        max_tokens = data.get("max_tokens", 2000)
-        temperature = data.get("temperature", 0.7)
+        data.get("max_tokens", 2000)
+        data.get("temperature", 0.7)
 
         if not messages:
-            return jsonify({"error": {"message": "messages cannot be empty", "type": "invalid_request_error"}}), 400
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "message": "messages cannot be empty",
+                            "type": "invalid_request_error",
+                        }
+                    }
+                ),
+                400,
+            )
 
         if not agent_graph:
-            return jsonify({"error": {"message": "Agent system not initialized", "type": "internal_server_error"}}), 500
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "message": "Agent system not initialized",
+                            "type": "internal_server_error",
+                        }
+                    }
+                ),
+                500,
+            )
 
         # Extract last user message
         user_message = ""
@@ -388,14 +454,31 @@ def openai_chat_completions():
                 break
 
         if not user_message:
-            return jsonify({"error": {"message": "No user message found", "type": "invalid_request_error"}}), 400
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "message": "No user message found",
+                            "type": "invalid_request_error",
+                        }
+                    }
+                ),
+                400,
+            )
 
         logger.info(f"OpenAI API request - Model: {model}, User message: {user_message[:100]}...")
 
         # Get session_id from request headers or parameters
-        session_id = request.headers.get("X-Session-ID", "default")
+        # Try multiple sources for session_id to be compatible with different frontends
+        session_id = (
+            request.headers.get("X-Session-ID") or 
+            request.args.get("session_id") or 
+            data.get("session_id") or 
+            "default"
+        )
         print(f"Received chat request - Session ID: {session_id}")
         print(f"Request headers: {dict(request.headers)}")
+        logger.info(f"OpenAI API request using session_id: {session_id}")
 
         if stream:
             # Streaming response
@@ -406,7 +489,10 @@ def openai_chat_completions():
 
     except Exception as e:
         logger.error(f"Error processing OpenAI API request: {e}")
-        return jsonify({"error": {"message": str(e), "type": "internal_server_error"}}), 500
+        return (
+            jsonify({"error": {"message": str(e), "type": "internal_server_error"}}),
+            500,
+        )
 
 
 def handle_non_streaming_response(model: str, original_messages: list, session_id: str = "default"):
@@ -425,7 +511,11 @@ def handle_non_streaming_response(model: str, original_messages: list, session_i
             "created": int(get_timestamp_unix()),
             "model": model,
             "choices": [
-                {"index": 0, "message": {"role": "assistant", "content": response_content}, "finish_reason": "stop"}
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": response_content},
+                    "finish_reason": "stop",
+                }
             ],
             "usage": {
                 "prompt_tokens": estimate_tokens(str(original_messages)),
@@ -438,15 +528,19 @@ def handle_non_streaming_response(model: str, original_messages: list, session_i
 
     except Exception as e:
         logger.error(f"Error handling non-streaming response: {e}")
-        return jsonify({"error": {"message": str(e), "type": "internal_server_error"}}), 500
+        return (
+            jsonify({"error": {"message": str(e), "type": "internal_server_error"}}),
+            500,
+        )
 
 
 def handle_streaming_response(model: str, messages: list, session_id: str = "default"):
     """Handle streaming response"""
     try:
-        from flask import Response
-        import uuid
         import json
+        import uuid
+
+        from flask import Response
 
         def generate():
             try:
@@ -482,7 +576,13 @@ def handle_streaming_response(model: str, messages: list, session_id: str = "def
                     "object": "chat.completion.chunk",
                     "created": int(get_timestamp_unix()),
                     "model": model,
-                    "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"role": "assistant"},
+                            "finish_reason": None,
+                        }
+                    ],
                 }
                 yield f"data: {json.dumps(start_chunk)}\n\n"
 
@@ -506,7 +606,13 @@ def handle_streaming_response(model: str, messages: list, session_id: str = "def
                             "object": "chat.completion.chunk",
                             "created": int(get_timestamp_unix()),
                             "model": model,
-                            "choices": [{"index": 0, "delta": {"content": accumulated_content}, "finish_reason": None}],
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {"content": accumulated_content},
+                                    "finish_reason": None,
+                                }
+                            ],
                         }
                         yield f"data: {json.dumps(chunk)}\n\n"
 
@@ -556,7 +662,10 @@ def handle_streaming_response(model: str, messages: list, session_id: str = "def
 
     except Exception as e:
         logger.error(f"Error handling streaming response: {e}")
-        return jsonify({"error": {"message": str(e), "type": "internal_server_error"}}), 500
+        return (
+            jsonify({"error": {"message": str(e), "type": "internal_server_error"}}),
+            500,
+        )
 
 
 @app.route("/v1/models", methods=["GET"])
@@ -611,7 +720,7 @@ Example usage:
   %(prog)s -r /path/to/debug        # Enable restricted mode for debugging
   %(prog)s -r ~/project --allow-parent-read  # Restricted mode with parent directory access
   %(prog)s --port 8080 --debug -r ~/debug    # Combined: custom port, debug mode, and restriction
-  
+
   LLM Configuration examples:
   %(prog)s --llm-model gpt-4         # Use GPT-4 model
   %(prog)s --llm-url https://api.openai.com/v1 --llm-api-key-env OPENAI_API_KEY  # Use OpenAI API
@@ -621,16 +730,31 @@ Example usage:
     )
 
     # Server configuration parameters
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="Server listening host address (default: 0.0.0.0)")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Server listening host address (default: 0.0.0.0)",
+    )
 
-    parser.add_argument("--port", type=int, default=5000, help="Server listening port number (default: 5000)")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=5000,
+        help="Server listening port number (default: 5000)",
+    )
 
     parser.add_argument("--debug", action="store_true", help="Enable Flask debug mode (default: off)")
 
     parser.add_argument("--no-debug", action="store_true", help="Force disable debug mode")
 
     # Agent configuration parameters
-    parser.add_argument("--web-mode", action="store_true", default=True, help="Enable Web mode (default: enabled)")
+    parser.add_argument(
+        "--web-mode",
+        action="store_true",
+        default=True,
+        help="Enable Web mode (default: enabled)",
+    )
 
     parser.add_argument("--no-web-mode", action="store_true", help="Disable Web mode")
 
@@ -643,11 +767,19 @@ Example usage:
     )
 
     # Working directory parameters
-    parser.add_argument("--working-dir", "-w", type=str, help="Set the initial working directory for the Agent")
+    parser.add_argument(
+        "--working-dir",
+        "-w",
+        type=str,
+        help="Set the initial working directory for the Agent",
+    )
 
     # Directory restriction parameters
     parser.add_argument(
-        "--restricted-dir", "-r", type=str, help="Enable restricted mode and confine AI to the specified directory"
+        "--restricted-dir",
+        "-r",
+        type=str,
+        help="Enable restricted mode and confine AI to the specified directory",
     )
 
     parser.add_argument(
@@ -658,21 +790,43 @@ Example usage:
 
     parser.add_argument(
         "--auto-mode",
-        choices=["manual", "blacklist_reject", "universal_reject", "whitelist_accept", "universal_accept"],
+        choices=[
+            "manual",
+            "blacklist_reject",
+            "universal_reject",
+            "whitelist_accept",
+            "universal_accept",
+        ],
         default="manual",
         help="Set automatic command handling mode (default: manual)",
     )
 
     # LLM configuration parameters
     parser.add_argument("--llm-model", type=str, help="Set LLM model name (e.g., deepseek-chat, gpt-4)")
-    
-    parser.add_argument("--llm-url", type=str, help="Set LLM API base URL (e.g., https://api.deepseek.com/v1)")
-    
-    parser.add_argument("--llm-api-key-env", type=str, help="Set environment variable name for LLM API key (e.g., DEEPSEEK_API_KEY)")
-    
-    parser.add_argument("--llm-max-tokens", type=int, help="Set maximum tokens for LLM response (default: 8192)")
-    
-    parser.add_argument("--llm-temperature", type=float, help="Set LLM temperature (0.0-2.0, default: 1.0)")
+
+    parser.add_argument(
+        "--llm-url",
+        type=str,
+        help="Set LLM API base URL (e.g., https://api.deepseek.com/v1)",
+    )
+
+    parser.add_argument(
+        "--llm-api-key-env",
+        type=str,
+        help="Set environment variable name for LLM API key (e.g., DEEPSEEK_API_KEY)",
+    )
+
+    parser.add_argument(
+        "--llm-max-tokens",
+        type=int,
+        help="Set maximum tokens for LLM response (default: 8192)",
+    )
+
+    parser.add_argument(
+        "--llm-temperature",
+        type=float,
+        help="Set LLM temperature (0.0-2.0, default: 1.0)",
+    )
 
     # Other options
     parser.add_argument("--version", action="version", version="AI Agent Web Server v1.0.0")
@@ -798,8 +952,7 @@ if __name__ == "__main__":
         print("⚡ LLM configuration updated, will use new settings for agent initialization")
 
     # Set log level
-    logging.getLogger().setLevel(getattr(logging, args.log_level))
-    logger.setLevel(getattr(logging, args.log_level))
+    logger.setLevel(args.log_level)
 
     # Print startup information
     print("🚀 Starting AI Agent API Server (SillyTavern compatible)...")

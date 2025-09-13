@@ -1,6 +1,7 @@
 // Establish SSE connection
 const serverUrl = "http://localhost:5000";
 const sessionId = "default"; // Can be dynamically set from session_id returned by backend
+console.log(`Connecting to SSE with session ID: ${sessionId}`);
 const es = new EventSource(`${serverUrl}/api/events?session_id=${sessionId}`);
 
 // Listen for messages
@@ -22,12 +23,18 @@ es.onmessage = (event) => {
 };
 
 es.onopen = (event) => {
-	console.log("SSE connection opened");
+	console.log(`SSE connection opened successfully for session: ${sessionId}`);
 };
 
 es.onerror = (err) => {
 	console.error("SSE connection error:", err);
 	console.log("Connection state:", es.readyState);
+	console.log("EventSource states: CONNECTING=0, OPEN=1, CLOSED=2");
+	
+	// Try to reconnect after a delay if the connection is closed
+	if (es.readyState === EventSource.CLOSED) {
+		console.warn("SSE connection closed, will auto-reconnect");
+	}
 };
 
 // Dialog function

@@ -4,9 +4,13 @@ Path validation utilities for directory restriction and sandboxing
 
 import os
 import re
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
+
 from config.config import CONFIG
-from utils.logger import logger
+from utils.logger import get_and_create_new_log_dir, get_logger
+
+log_dir = get_and_create_new_log_dir(root=CONFIG["log_dir"], prefix="", suffix="", strftime_format="%Y%m%d")
+logger = get_logger(name=__name__, log_dir=log_dir)
 
 
 def normalize_path(path: str) -> str:
@@ -61,7 +65,10 @@ def is_path_allowed(target_path: str, operation_type: str = "read") -> Tuple[boo
 
         # Strict sandbox mode
         if CONFIG.get("enforce_strict_sandbox", True):
-            return False, f"Path outside allowed directory: {normalized_target} not in {normalized_allowed}"
+            return (
+                False,
+                f"Path outside allowed directory: {normalized_target} not in {normalized_allowed}",
+            )
 
         return False, f"Path restriction violation: {normalized_target}"
 
@@ -84,7 +91,8 @@ def extract_paths_from_command(command: str) -> List[str]:
 
     # Common patterns for file paths in commands
     path_patterns = [
-        r"(?:^|\s)([^\s]*\.(?:py|js|ts|txt|json|yaml|yml|md|sh|conf|cfg|ini|log|csv)(?:\s|$))",  # File extensions
+        # File extensions
+        r"(?:^|\s)([^\s]*\.(?:py|js|ts|txt|json|yaml|yml|md|sh|conf|cfg|ini|log|csv)(?:\s|$))",
         r"(?:^|\s)([~/][^\s]*)",  # Absolute paths starting with / or ~
         r"(?:^|\s)(\.[^\s]*)",  # Relative paths starting with .
         r"(?:^|\s)([a-zA-Z0-9_.-]+/[^\s]*)",  # Directory-like paths
@@ -131,7 +139,11 @@ def validate_command_paths(command: str) -> Tuple[bool, str, List[str]]:
 
         allowed, reason = is_path_allowed(path, operation_type)
         if not allowed:
-            return False, f"Path restriction violation for '{path}': {reason}", detected_paths
+            return (
+                False,
+                f"Path restriction violation for '{path}': {reason}",
+                detected_paths,
+            )
 
     return True, "All paths allowed", detected_paths
 
@@ -176,7 +188,20 @@ def get_command_operation_type(command: str) -> str:
     }
 
     # Write operations
-    write_commands = {"touch", "mkdir", "rmdir", "rm", "mv", "cp", "chmod", "chown", "echo", "tee", "sed", "awk"}
+    write_commands = {
+        "touch",
+        "mkdir",
+        "rmdir",
+        "rm",
+        "mv",
+        "cp",
+        "chmod",
+        "chown",
+        "echo",
+        "tee",
+        "sed",
+        "awk",
+    }
 
     if base_command in read_commands:
         return "read"

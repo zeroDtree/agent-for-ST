@@ -1,7 +1,12 @@
-from states import State
-from utils.logger import logger
 from langchain_core.messages import ToolMessage
 from langgraph.types import Command
+
+from config.config import CONFIG
+from states import State
+from utils.logger import get_and_create_new_log_dir, get_logger
+
+log_dir = get_and_create_new_log_dir(root=CONFIG["log_dir"], prefix="", suffix="", strftime_format="%Y%m%d")
+logger = get_logger(name=__name__, log_dir=log_dir)
 
 
 def get_auto_reject_node(next_node: str):
@@ -30,8 +35,8 @@ def reject_node(state: State, next_node: str):
 
             # Get more specific rejection reason
             try:
-                from tools.whitelist import get_command_category, get_auto_mode_description
                 from config.config import CONFIG
+                from tools.whitelist import get_command_category
 
                 category = get_command_category(command_info)
                 auto_mode = CONFIG.get("auto_mode", "manual")

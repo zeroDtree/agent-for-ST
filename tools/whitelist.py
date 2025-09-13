@@ -1,5 +1,6 @@
 # Command whitelist configuration
-# These commands are considered safe and can be executed directly without user confirmation
+# These commands are considered safe and can be executed directly without
+# user confirmation
 
 SAFE_COMMANDS = {
     # File system operations
@@ -158,7 +159,8 @@ DANGEROUS_COMMANDS = {
     "telnet",
     "nc",
     "netcat",  # Network connections
-    # Removed python, node, npm, pip from dangerous list as they can be safe for debugging in restricted mode
+    # Removed python, node, npm, pip from dangerous list as they can be safe
+    # for debugging in restricted mode
     "bash",
     "sh",
     "zsh",
@@ -201,26 +203,27 @@ def is_safe_command(command: str) -> bool:
 def is_safe_command_with_restrictions(command: str) -> bool:
     """
     Check if command is safe considering directory restrictions
-    
+
     Args:
         command: Command string to check
-        
+
     Returns:
         bool: True if command is safe under current restrictions, False otherwise
     """
     from config.config import CONFIG
-    
+
     # First check basic safety
     if not is_safe_command(command):
         return False
-    
+
     # If not in restricted mode, use regular whitelist check
     if not CONFIG.get("restricted_mode", False):
         return True
-    
+
     # In restricted mode, perform additional path validation
     try:
         from utils.path_validator import validate_command_paths
+
         is_allowed, reason, paths = validate_command_paths(command)
         return is_allowed
     except ImportError:
@@ -255,44 +258,47 @@ def get_command_category(command: str) -> str:
 def should_auto_approve_command(command: str) -> tuple[bool, str]:
     """
     Check if command should be auto-approved based on current auto mode
-    
+
     Args:
         command: Command to check
-        
+
     Returns:
         tuple[bool, str]: (should_auto_approve, reason)
     """
     from config.config import CONFIG
-    
+
     auto_mode = CONFIG.get("auto_mode", "manual")
-    
+
     if auto_mode == "manual":
         return False, "Manual mode - requires human confirmation"
-    
+
     # Get command safety info
-    is_safe = is_safe_command(command)
+    is_safe_command(command)
     category = get_command_category(command)
-    
+
     if auto_mode == "blacklist_reject":
         # Auto reject blacklist commands, manual for others
         if category == "dangerous":
             return False, "Auto-rejected: dangerous command in blacklist"
-        return False, "Blacklist reject mode - non-blacklist commands need manual confirmation"
-    
+        return (
+            False,
+            "Blacklist reject mode - non-blacklist commands need manual confirmation",
+        )
+
     elif auto_mode == "universal_reject":
         # Auto reject all commands requiring confirmation
         return False, "Auto-rejected: universal reject mode"
-    
+
     elif auto_mode == "whitelist_accept":
         # Auto accept non-blacklist commands (whitelist + unknown)
         if category == "dangerous":
             return False, "Auto-rejected: dangerous command in blacklist"
         return True, f"Auto-approved: non-blacklist command ({category})"
-    
+
     elif auto_mode == "universal_accept":
         # Auto accept all commands (including blacklist)
         return True, f"Auto-approved: universal accept mode ({category})"
-    
+
     else:
         return False, f"Unknown auto mode: {auto_mode}"
 
@@ -300,20 +306,20 @@ def should_auto_approve_command(command: str) -> tuple[bool, str]:
 def get_auto_mode_description() -> str:
     """
     Get description of current auto mode
-    
+
     Returns:
         str: Description of current auto mode
     """
     from config.config import CONFIG
-    
+
     auto_mode = CONFIG.get("auto_mode", "manual")
-    
+
     descriptions = {
         "manual": "🤚 Manual Mode - All commands require human confirmation",
         "blacklist_reject": "🚫 Blacklist Reject - Auto-reject dangerous commands, manual for others",
         "universal_reject": "⛔ Universal Reject - Auto-reject all commands requiring confirmation",
         "whitelist_accept": "✅ Whitelist Accept - Auto-accept non-blacklist commands",
-        "universal_accept": "🟢 Universal Accept - Auto-accept ALL commands (including dangerous ones)"
+        "universal_accept": "🟢 Universal Accept - Auto-accept ALL commands (including dangerous ones)",
     }
-    
+
     return descriptions.get(auto_mode, f"❓ Unknown mode: {auto_mode}")

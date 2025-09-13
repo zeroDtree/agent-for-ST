@@ -1,8 +1,9 @@
 # my package
+import os
+
+from config.config import CONFIG
 from llms.llm import get_llm_model
 from tools import ALL_TOOLS
-from config.config import CONFIG
-import os
 
 
 def create_llm_with_tools():

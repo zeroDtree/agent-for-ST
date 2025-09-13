@@ -2,9 +2,12 @@ from langgraph.graph import END
 
 # Configuration and utils
 from config.config import CONFIG, TOOL_SECURITY_CONFIG
-from utils.logger import logger
-from utils.cache import cached_is_safe_command
 from states.state import State
+from utils.cache import cached_is_safe_command
+from utils.logger import get_and_create_new_log_dir, get_logger
+
+log_dir = get_and_create_new_log_dir(root=CONFIG["log_dir"], prefix="", suffix="", strftime_format="%Y%m%d")
+logger = get_logger(name=__name__, log_dir=log_dir)
 
 
 def chatbot_route(state: State):
@@ -26,6 +29,7 @@ def chatbot_route(state: State):
             # Log tool call information
             tool_names = [tool_call.get("name", "unknown") for tool_call in ai_message.tool_calls]
             logger.info(f"Tool calls detected: {', '.join(tool_names)}")
+            logger.info(f"with args: {ai_message.tool_calls}")
 
             for tool_call in ai_message.tool_calls:
                 tool_name = tool_call.get("name", "")
@@ -63,7 +67,8 @@ def chatbot_route(state: State):
                     # Check auto mode first
                     auto_mode = CONFIG.get("auto_mode", "manual")
 
-                    # Always check if command is whitelisted first (safe commands execute regardless of auto mode)
+                    # Always check if command is whitelisted first (safe
+                    # commands execute regardless of auto mode)
                     if CONFIG.get("restricted_mode", False):
                         try:
                             from tools.whitelist import is_safe_command_with_restrictions
@@ -81,7 +86,7 @@ def chatbot_route(state: State):
                     # For non-whitelisted commands, check auto mode
                     if auto_mode != "manual":
                         try:
-                            from tools.whitelist import should_auto_approve_command, get_auto_mode_description
+                            from tools.whitelist import should_auto_approve_command
 
                             should_approve, reason = should_auto_approve_command(command)
                             if should_approve:
@@ -93,7 +98,8 @@ def chatbot_route(state: State):
                                 if "Auto-rejected" in reason:
                                     print(f"🚫 {reason}: {command}")
                                     logger.info(f"Auto-rejected command: {command}, reason: {reason}")
-                                    # Return auto_reject to provide proper feedback
+                                    # Return auto_reject to provide proper
+                                    # feedback
                                     return "auto_reject"
                                 else:
                                     print(f"⚠️ {reason}: {command}")

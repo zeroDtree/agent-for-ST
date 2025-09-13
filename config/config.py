@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Main configuration
 CONFIG: Dict[str, Any] = {
@@ -8,16 +7,23 @@ CONFIG: Dict[str, Any] = {
     "stream_mode": "values",
     "max_history_messages": 10000,
     "command_timeout": 30,
+    "log_dir": "logs",
     "log_level": "INFO",
     # Working directory configuration
-    "working_directory": None,  # Agent's initial working directory, None means use current directory
+    # Agent's initial working directory, None means use current directory
+    "working_directory": None,
     # Directory restriction configuration (for debugging mode)
     "restricted_mode": False,  # Enable directory restriction mode
-    "allowed_directory": None,  # Restrict AI operations to this directory and its subdirectories
-    "allow_parent_read": False,  # Allow reading files from parent directories (read-only)
-    "enforce_strict_sandbox": True,  # Enforce strict sandboxing (no operations outside allowed directory)
+    # Restrict AI operations to this directory and its subdirectories
+    "allowed_directory": None,
+    # Allow reading files from parent directories (read-only)
+    "allow_parent_read": False,
+    # Enforce strict sandboxing (no operations outside allowed directory)
+    "enforce_strict_sandbox": True,
     # Auto mode configuration
-    "auto_mode": "manual",  # Options: "manual", "blacklist_reject", "universal_reject", "whitelist_accept", "universal_accept"
+    # Options: "manual", "blacklist_reject", "universal_reject",
+    # "whitelist_accept", "universal_accept"
+    "auto_mode": "manual",
     # LLM configuration
     "llm_model_name": "deepseek-chat",  # Default model name
     "llm_base_url": "https://api.deepseek.com/v1",  # Default API base URL
@@ -27,10 +33,12 @@ CONFIG: Dict[str, Any] = {
     "llm_temperature": 1.0,  # Temperature for response generation
     "llm_presence_penalty": 0.0,  # Presence penalty
     "llm_frequency_penalty": 0.0,  # Frequency penalty
-    # Blog knowledge base configuration
-    "blog_path": "data/blog_content",
+    # Knowledge base configuration
+    # Default source path for knowledge base (current directory)
+    "default_source_path": ".",
     "vector_db_path": "data/vector_db",
-    "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # Lightweight multilingual embedding model
+    # Lightweight multilingual embedding model
+    "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     "chunk_size": 2000,  # Reduce chunk size to improve semantic focus
     "chunk_overlap": 100,  # Correspondingly reduce overlap
     "search_k": 10,  # Initial search for more results
@@ -41,12 +49,20 @@ CONFIG: Dict[str, Any] = {
 WHITELIST_CONFIG = {"cache_size": 1000, "cache_ttl": 300}  # 5 minutes
 
 # Monitoring configuration
-MONITOR_CONFIG = {"enable_performance_monitoring": True, "slow_threshold_ms": 10000}  # 10 seconds
+MONITOR_CONFIG = {
+    "enable_performance_monitoring": True,
+    "slow_threshold_ms": 10000,
+}  # 10 seconds
 
 # Tool security configuration
 TOOL_SECURITY_CONFIG = {
     # Safe tools list (no user confirmation required)
-    "safe_tools": {"update_blog_knowledge_base", "search_blog_knowledge_base", "get_blog_knowledge_base_stats"},
+    "safe_tools": {
+        "search_knowledge_base",
+        "add_text_to_knowledge_base",
+        "get_knowledge_base_stats",
+        "list_knowledge_bases",
+    },
     # Shell command tools list
     "shell_tools": {"run_shell_command_popen_tool"},
     # Tools requiring confirmation list
